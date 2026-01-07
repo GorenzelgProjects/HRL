@@ -1,0 +1,88 @@
+# Thin Ice Gymnasium Environment Configuration
+# This file controls RL methods, reward functions, and test settings
+
+# Environment Settings
+environment:
+  level: 1  # Level to test (1-19)
+  max_episode_steps: 1000  # Maximum steps per episode
+  headless: true  # Run without display (faster training)
+  render_mode: null  # "human", "ansi", "semi", or null
+
+# Test Settings
+test:
+  render: false  # Enable visual rendering
+  delay: 0.1  # Delay between rendered frames (seconds)
+  random_episodes: 3  # Number of random agent episodes
+  qlearning_episodes: 50  # Number of Q-learning episodes
+
+# RL Method Selection
+rl_method:
+  # Options: "random", "qlearning", "both"
+  method: "both"
+  
+  # Q-Learning specific parameters
+  qlearning:
+    learning_rate: 0.1
+    discount: 0.95
+    epsilon: 0.2  # Exploration rate
+    epsilon_decay: 0.995  # Epsilon decay per episode
+    epsilon_min: 0.01  # Minimum epsilon
+
+# Reward Function Configuration
+rewards:
+  # Tile visiting rewards
+  new_tile_reward: 0.1  # Reward for visiting a new tile
+  
+  # Completion rewards
+  level_completion_reward: 5.0  # Reward for reaching exit
+  perfect_completion_bonus: 10.0  # Bonus if all tiles visited before exit
+  
+  # Item collection rewards
+  key_collection_reward: 1.0  # Reward for collecting key
+  keyhole_unlock_reward: 1.0  # Reward for unlocking keyhole
+  treasure_collection_reward: 2.0  # Reward for collecting treasure
+  
+  # Penalties
+  invalid_move_penalty: -0.01  # Penalty for invalid moves
+  death_penalty: -5.0  # Penalty for dying (getting stuck)
+  
+  # Distance-based rewards (optional)
+  use_distance_reward: false  # Enable distance-based shaping
+  distance_reward_scale: -0.01  # Negative reward per unit distance
+
+# Observation Space Configuration
+observation:
+  # Observation type: "grid" (flattened grid) or "dict" (structured)
+  type: "grid"
+  
+  # Grid encoding:
+  # 0 = empty/free, 1 = wall, 2 = ice, 3 = water, 4 = player, 5 = exit, 6 = key, 7 = keyhole
+  include_agent_position: true
+  include_exit_position: true
+  include_key_status: true
+
+# Training Configuration
+training:
+  # Number of training episodes
+  total_episodes: 1000
+  
+  # Evaluation settings
+  eval_frequency: 100  # Evaluate every N episodes
+  eval_episodes: 10  # Number of episodes for evaluation
+  
+  # Save settings
+  save_frequency: 100  # Save model every N episodes
+  save_path: "models/"  # Directory to save models
+
+# Results Configuration
+results:
+  save_results: true  # Save test results to file
+  results_dir: "test_results"  # Directory for results
+  save_format: "json"  # "json" or "csv"
+  include_episode_details: true  # Include full episode data
+
+# Logging Configuration
+logging:
+  verbose: true  # Print detailed logs
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_file: null  # Path to log file (null = no file logging)
