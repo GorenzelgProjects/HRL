@@ -4,8 +4,11 @@ import heapq
 import itertools
 import numpy as np
 import copy
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, TYPE_CHECKING
 from data.classes.settings import *
+
+if TYPE_CHECKING:
+    from data.classes.Player import Player
 
 class PriorityQueue:
 
@@ -96,11 +99,8 @@ class FrontierAStar(FrontierBestFirst):
 
     def f(self, state: ThinIceState, goal_description: ThinIceGoal) -> int:
         g = state.path_cost
-        print((state.player.x, state.player.y))
-        # print("h: ", self.heuristic.h(state, goal_description))
-        # print("g:", g)
-        print("f:", self.heuristic.h(state, goal_description) + g)
-        return self.heuristic.h(state, goal_description) + g
+        h = self.heuristic.h(state, goal_description)
+        return h + g
     
 class ThinIceState():
     def __init__(self, 
@@ -111,21 +111,46 @@ class ThinIceState():
                  has_key: bool = False,
                  can_teleport: bool = True,
                  reset_once: bool = False,
-                 moved: bool = False):
+                 moved: bool = False,
+                 keyhole_unlocked: bool = False,
+                 moving_block_pos: Optional[Tuple[int, int]] = None):
         
         self.player = player
         self.action = action
         self.parent = parent
-        self.path_cost = 0 if parent is None else parent.path_cost
+        # Fix: Path cost should increment from parent, not just copy
+        if parent is None:
+            self.path_cost = 0
+        else:
+            # Path cost increases by 1 for each step (step cost)
+            # Rewards will be subtracted later in result() method
+            self.path_cost = parent.path_cost + 1
 
         self.has_key = has_key
         self.can_teleport = can_teleport
         self.reset_once = reset_once
         self.moved = moved
+        self.keyhole_unlocked = keyhole_unlocked
         
-        self.visited_tiles = set()
+        # Track moving block position
+        if moving_block_pos is not None:
+            self.moving_block_pos = moving_block_pos
+        elif parent is not None:
+            self.moving_block_pos = parent.moving_block_pos
+        elif self.player.game.movingBlock:
+            self.moving_block_pos = (self.player.game.movingBlock.x, self.player.game.movingBlock.y)
+        else:
+            self.moving_block_pos = None
+        
+        # Fix: Copy visited_tiles from parent if it exists
+        if parent is not None:
+            self.visited_tiles = parent.visited_tiles.copy()
+            self.complete_tiles = parent.complete_tiles
+        else:
+            self.visited_tiles = set()
+            self.complete_tiles = 0
+        
         self.reward_config = reward_config
-        self.complete_tiles = 0
         
     def extract_plan(self) -> list[int]:
         """Extracts a plan from the search tree by walking backwards through the search tree"""
@@ -143,109 +168,226 @@ class ThinIceState():
         applicable_actions = []
         for action, (dx, dy) in action_set.items():
 
-            if self.player.game.currentLevel > MOVINGBLOCKLEVEL and self.player.nearTile(self.player.game.movingBlock) != 0:
-                locationOfPlayer = self.player.nearTile(self.player.game.movingBlock)
-                self.player.game.blockIsMoving = True
+            # Check if moving block exists and player is near it
+            pushing_block = False
+            if (self.player.game.currentLevel > MOVINGBLOCKLEVEL and 
+                self.moving_block_pos is not None):
                 
-                if locationOfPlayer == 1 and dx == -1 and dy == 0:
-                    continue
-                elif locationOfPlayer == 2 and dx == 1 and dy == 0:
-                    continue
-                elif locationOfPlayer == 3 and dx == 0 and dy == -1:
-                    continue
-                elif locationOfPlayer == 4 and dx == 0 and dy == 1:
-                    continue
+                block_x, block_y = self.moving_block_pos
+                # Check if player is adjacent to moving block
+                player_near_block = (
+                    (block_x == self.player.x - 1 and block_y == self.player.y) or  # left
+                    (block_x == self.player.x + 1 and block_y == self.player.y) or  # right
+                    (block_x == self.player.x and block_y == self.player.y - 1) or  # up
+                    (block_x == self.player.x and block_y == self.player.y + 1)     # down
+                )
                 
-                # If the player is not near a moving block, just do the normal collison check                        
-                else:
-                    if not self.player.collideWithGroup(self.player.game.walls, dx, dy):
-                        applicable_actions.append((action, (dx, dy)))           
+                if player_near_block:
+                    # Check if player is moving TOWARDS the block (pushing it)
+                    is_pushing = (
+                        (block_x == self.player.x - 1 and dx == -1) or  # block left, moving left
+                        (block_x == self.player.x + 1 and dx == 1) or    # block right, moving right
+                        (block_y == self.player.y - 1 and dy == -1) or  # block up, moving up
+                        (block_y == self.player.y + 1 and dy == 1)      # block down, moving down
+                    )
+                    
+                    if is_pushing:
+                        # Player is pushing the block
+                        # Check if block can move in that direction
+                        new_block_x = block_x + dx
+                        new_block_y = block_y + dy
+                        
+                        # Block can't move if there's a wall in the way
+                        if not self._block_collides_with_walls(new_block_x, new_block_y):
+                            # Block can move, so player can push it
+                            applicable_actions.append((action, (dx, dy)))
+                            pushing_block = True
+                        # If block is blocked, player can't move in that direction
+                        continue
             
-            
-            # When it's the earlier levels, just check if the player is colliding with a wall
-            elif not self.player.collideWithGroup(self.player.game.walls, dx, dy):
-                applicable_actions.append((action, (dx, dy)))
+            # Normal movement (not pushing block)
+            if not pushing_block:
+                # Check collisions, but allow moving into block's position if we're not pushing
+                # (since if we were pushing, we would have handled it above)
+                if not self._collide_with_walls(dx, dy) and not self._collide_with_block(dx, dy):
+                    applicable_actions.append((action, (dx, dy)))
         
         return applicable_actions
     
+    def _collide_with_block(self, dx, dy):
+        """Check if player would collide with moving block"""
+        if self.moving_block_pos is None:
+            return False
+        target_x = self.player.x + dx
+        target_y = self.player.y + dy
+        block_x, block_y = self.moving_block_pos
+        return target_x == block_x and target_y == block_y
+    
+    def _block_collides_with_walls(self, block_x, block_y):
+        """Check if moving block would collide with walls at given position"""
+        from data.classes.Immovable import KeyHole
+        
+        for wall in self.player.game.walls:
+            # Skip keyhole if it's unlocked
+            if isinstance(wall, KeyHole) and self.keyhole_unlocked:
+                continue
+            if wall.x == block_x and wall.y == block_y:
+                return True
+        return False
+    
+    def _collide_with_walls(self, dx, dy):
+        """Check collision with walls, excluding keyhole if it's unlocked"""
+        target_x = self.player.x + dx
+        target_y = self.player.y + dy
+        
+        # Import KeyHole for isinstance check
+        from data.classes.Immovable import KeyHole
+        
+        for wall in self.player.game.walls:
+            # Skip keyhole if it's unlocked
+            if isinstance(wall, KeyHole) and self.keyhole_unlocked:
+                continue
+            if wall.x == target_x and wall.y == target_y:
+                return True
+        return False
+    
     def result(self, dx, dy):
-        # Update game state references
-        import pdb
+        # Check if player is pushing moving block
+        pushing_block = False
+        old_block_pos = self.moving_block_pos
+        if (self.moving_block_pos is not None and 
+            self.player.game.currentLevel > MOVINGBLOCKLEVEL):
+            block_x, block_y = self.moving_block_pos
+            # Check if player is adjacent to block and moving towards it
+            player_near_block = (
+                (block_x == self.player.x - 1 and block_y == self.player.y and dx == -1) or  # left
+                (block_x == self.player.x + 1 and block_y == self.player.y and dx == 1) or   # right
+                (block_x == self.player.x and block_y == self.player.y - 1 and dy == -1) or  # up
+                (block_x == self.player.x and block_y == self.player.y + 1 and dy == 1)      # down
+            )
+            
+            if player_near_block:
+                # Player is pushing the block
+                new_block_x = block_x + dx
+                new_block_y = block_y + dy
+                
+                # Check if block can move (no wall collision)
+                if not self._block_collides_with_walls(new_block_x, new_block_y):
+                    # Block can move, update its position
+                    self.moving_block_pos = (new_block_x, new_block_y)
+                    pushing_block = True
+                else:
+                    # Block is blocked, player can't move
+                    return self
         
-        # Move player
-        self.player.checkAndMove(dx=dx, dy=dy)
+        # Check if move is valid (collision check)
+        # When pushing block, player moves into block's old position, so skip block collision check
+        player_target_x = self.player.x + dx
+        player_target_y = self.player.y + dy
         
-        # Check if move was successful
-        reward = 0.0
+        # Check wall collision
+        wall_collision = self._collide_with_walls(dx, dy)
         
-        # Track visited tiles
-        new_pos = (self.player.x, self.player.y)
-        if new_pos not in self.visited_tiles:
-            self.visited_tiles.add(new_pos)
-            self.complete_tiles += 1
-            reward += self.reward_config["new_tile_reward"]
+        # Check block collision (but not if we're pushing, since block will have moved)
+        block_collision = False
+        if not pushing_block:
+            # Check collision with block at its current position
+            block_collision = self._collide_with_block(dx, dy)
+        # If pushing, block collision is not an issue since block moves first
         
-        # TODO: Later implementation
-        # # Check if reached exit
-        # if self.player.collideWithTile(self.end_tile):
-        #     # Bonus reward for completing level
-        #     if self.complete_tiles == self.total_tiles:
-        #         reward += self.reward_config["perfect_completion_bonus"]
-        #     else:
-        #         reward += self.reward_config["level_completion_reward"]
-        #     terminated = True
-        
-        # # Check for key collection
-        # if self.player.game.key and self.player.collideWithTile(self.player.game.key):
-        #     self.has_key = True
-        #     self.game.hasKey = True
-        #     reward += self.reward_config["key_collection_reward"]
-        
-        # # Check for keyhole unlocking
-        # if self.has_key and self.game.keyHole:
-        #     if self.player.nearTile(self.game.keyHole) != 0:
-        #         self.has_key = False
-        #         self.game.hasKey = False
-        #         reward += self.reward_config["keyhole_unlock_reward"]
-        
-        # # Check for treasure
-        # if self.player.game.treasureTile and self.player.collideWithTile(self.player.game.treasureTile):
-        #     reward += self.reward_config["treasure_collection_reward"]
-        
-        # # Check for death (stuck)
-        # if self.player.checkDeath():
-        #     reward += self.reward_config["death_penalty"]
-        
-        # Update sprites (including player animation)
-        # self.all_sprites.update()
-        # self.score_sprites.update()  # Update player sprite
-        # self.updating_block_group.update()
-        
-        # Get new observation
-        # obs = self._get_obs()
-        # info = self._get_info()
-        
-        self.path_cost -= reward
+        if not wall_collision and not block_collision:
+            # Move player position (without modifying game state)
+            self.player.x += dx
+            self.player.y += dy
+            
+            reward = 0.0
+            
+            # Track visited tiles
+            new_pos = (self.player.x, self.player.y)
+            if new_pos not in self.visited_tiles:
+                self.visited_tiles.add(new_pos)
+                self.complete_tiles += 1
+                reward += self.reward_config.get("new_tile_reward", 0.1)
+            
+            # Check for key collection
+            if self.player.game.key and self.player.collideWithTile(self.player.game.key):
+                self.has_key = True
+                reward += self.reward_config.get("key_collection_reward", 0.5)
+            
+            # Check for keyhole unlocking
+            if self.has_key and self.player.game.keyHole and not self.keyhole_unlocked:
+                # Check if player is near the keyhole (adjacent to it)
+                if self.player.nearTile(self.player.game.keyHole) != 0:
+                    self.keyhole_unlocked = True
+                    self.has_key = False  # Key is consumed when unlocking
+                    reward += self.reward_config.get("keyhole_unlock_reward", 0.5)
+            
+            # Check for teleporting (only after level 16)
+            if (self.player.game.currentLevel > TELEPORTLEVEL and 
+                self.can_teleport and 
+                self.player.game.firstTeleporter and 
+                self.player.game.secondTeleporter):
+                
+                # Check if player stepped on first teleporter
+                if self.player.collideWithTile(self.player.game.firstTeleporter):
+                    # Remove teleporter tile from visited (same as original game)
+                    if new_pos in self.visited_tiles:
+                        self.visited_tiles.remove(new_pos)
+                        self.complete_tiles -= 1
+                    # Teleport to second teleporter
+                    self.player.x = self.player.game.secondTeleporter.x
+                    self.player.y = self.player.game.secondTeleporter.y
+                    self.can_teleport = False
+                    reward += self.reward_config.get("teleport_reward", 0.0)
+                    # Track the new position after teleporting
+                    new_pos = (self.player.x, self.player.y)
+                    if new_pos not in self.visited_tiles:
+                        self.visited_tiles.add(new_pos)
+                        self.complete_tiles += 1
+                
+                # Check if player stepped on second teleporter
+                elif self.player.collideWithTile(self.player.game.secondTeleporter):
+                    # Remove teleporter tile from visited (same as original game)
+                    if new_pos in self.visited_tiles:
+                        self.visited_tiles.remove(new_pos)
+                        self.complete_tiles -= 1
+                    # Teleport to first teleporter
+                    self.player.x = self.player.game.firstTeleporter.x
+                    self.player.y = self.player.game.firstTeleporter.y
+                    self.can_teleport = False
+                    reward += self.reward_config.get("teleport_reward", 0.0)
+                    # Track the new position after teleporting
+                    new_pos = (self.player.x, self.player.y)
+                    if new_pos not in self.visited_tiles:
+                        self.visited_tiles.add(new_pos)
+                        self.complete_tiles += 1
+            
+            # Subtract reward from path cost (rewards reduce cost)
+            self.path_cost -= reward
+        else:
+            # Move was blocked, but we still increment path cost for the attempt
+            # This ensures we don't get stuck in infinite loops
+            pass
         
         return self
 
     def __eq__(self, other) -> bool:
         """
-        Notice that we here only compare the agent position, but ignore all other fields.
-        That means that two states with identical positions but e.g. different parent will be seen as equal.
+        Compare states based on player position, key status, keyhole status, moving block position, and teleport status.
+        States with same position but different key/keyhole/block/teleport status are different.
         """
         if isinstance(other, self.__class__):
-            return (self.player.x, self.player.y) == (other.player.x, other.player.y)
+            return (self.player.x, self.player.y, self.has_key, self.keyhole_unlocked, self.moving_block_pos, self.can_teleport) == \
+                   (other.player.x, other.player.y, other.has_key, other.keyhole_unlocked, other.moving_block_pos, other.can_teleport)
         else:
             return False
     
     def __hash__(self):
         """
-        Allows the state to be stored in a hash table for efficient lookup.
-        Notice that we here only hash the agent positions and box positions, but ignore all other fields.
-        That means that two states with identical positions but e.g. different parent will map to the same hash value.
+        Hash state based on player position, key status, keyhole status, moving block position, and teleport status.
+        This ensures states with different key/keyhole/block/teleport status are treated as different.
         """
-        return hash((self.player.x, self.player.y)) # TODO: Also add haskey
+        return hash((self.player.x, self.player.y, self.has_key, self.keyhole_unlocked, self.moving_block_pos, self.can_teleport))
 
 class ThinIceGoal():
     def __init__(self, x: int, y: int) -> None:

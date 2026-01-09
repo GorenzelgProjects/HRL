@@ -64,13 +64,33 @@ class Player(pg.sprite.Sprite):
             self.game.blockIsMoving = True
             
             if locationOfPlayer == 1 and dx == -1 and dy == 0:
+                # Player is to the right of block, pushing left
                 self.game.movingBlock.setVelocity(dx,dy)
+                # Move player into block's old position
+                if self.checkMakeWater() and not self.collideWithGroup(self.game.noWaterGroup, 0, 0):
+                    Water(self.game, self.x, self.y)
+                self.move(dx,dy)
             elif locationOfPlayer == 2 and dx == 1 and dy == 0:
+                # Player is to the left of block, pushing right
                 self.game.movingBlock.setVelocity(dx,dy)
+                # Move player into block's old position
+                if self.checkMakeWater() and not self.collideWithGroup(self.game.noWaterGroup, 0, 0):
+                    Water(self.game, self.x, self.y)
+                self.move(dx,dy)
             elif locationOfPlayer == 3 and dx == 0 and dy == -1:
+                # Player is below block, pushing up
                 self.game.movingBlock.setVelocity(dx,dy)
+                # Move player into block's old position
+                if self.checkMakeWater() and not self.collideWithGroup(self.game.noWaterGroup, 0, 0):
+                    Water(self.game, self.x, self.y)
+                self.move(dx,dy)
             elif locationOfPlayer == 4 and dx == 0 and dy == 1:
+                # Player is above block, pushing down
                 self.game.movingBlock.setVelocity(dx,dy)
+                # Move player into block's old position
+                if self.checkMakeWater() and not self.collideWithGroup(self.game.noWaterGroup, 0, 0):
+                    Water(self.game, self.x, self.y)
+                self.move(dx,dy)
             
             
             # If the player is not near a moving block, just do the normal collison check                        

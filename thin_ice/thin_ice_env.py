@@ -593,6 +593,11 @@ class ThinIceEnv(gym.Env):
             
             # Check for key collection
             if self.game.key and self.player.collideWithTile(self.game.key):
+                # Remove key sprite (same behavior as original game)
+                self.game.key.kill()
+                self.game.key = None  # Clear the reference
+                
+                # Give player the key
                 self.has_key = True
                 self.game.hasKey = True
                 reward += self.reward_config["key_collection_reward"]
@@ -600,6 +605,17 @@ class ThinIceEnv(gym.Env):
             # Check for keyhole unlocking
             if self.has_key and self.game.keyHole:
                 if self.player.nearTile(self.game.keyHole) != 0:
+                    # Store keyhole position before removing it
+                    keyhole_x = self.game.keyHole.x
+                    keyhole_y = self.game.keyHole.y
+                    
+                    # Remove keyhole from walls group and replace with Free tile
+                    # This is the same behavior as the original game
+                    self.game.keyHole.kill()  # Removes from all sprite groups including walls
+                    Free(self.game, keyhole_x, keyhole_y)  # Replace with free tile
+                    self.game.keyHole = None  # Clear the reference
+                    
+                    # Consume the key
                     self.has_key = False
                     self.game.hasKey = False
                     reward += self.reward_config["keyhole_unlock_reward"]
@@ -607,6 +623,54 @@ class ThinIceEnv(gym.Env):
             # Check for treasure
             if self.game.treasureTile and self.player.collideWithTile(self.game.treasureTile):
                 reward += self.reward_config["treasure_collection_reward"]
+            
+            # Check for teleporting (only after level 16)
+            if (self.game.currentLevel > TELEPORTLEVEL and 
+                self.can_teleport and 
+                self.game.firstTeleporter and 
+                self.game.secondTeleporter):
+                
+                # Check if player stepped on first teleporter
+                if self.player.collideWithTile(self.game.firstTeleporter):
+                    # Don't count teleporter tile as visited (same as original game)
+                    if new_pos in self.visited_tiles:
+                        self.visited_tiles.remove(new_pos)
+                        self.complete_tiles -= 1
+                    # Teleport to second teleporter
+                    self.player.movetoCoordinate(
+                        self.game.secondTeleporter.x, 
+                        self.game.secondTeleporter.y
+                    )
+                    self.can_teleport = False
+                    self.game.canTeleport = False
+                    reward += self.reward_config.get("teleport_reward", 0.0)
+                    # Track the new position after teleporting
+                    teleported_pos = (self.player.x, self.player.y)
+                    if teleported_pos not in self.visited_tiles:
+                        self.visited_tiles.add(teleported_pos)
+                        self.complete_tiles += 1
+                        reward += self.reward_config["new_tile_reward"]
+                
+                # Check if player stepped on second teleporter
+                elif self.player.collideWithTile(self.game.secondTeleporter):
+                    # Don't count teleporter tile as visited (same as original game)
+                    if new_pos in self.visited_tiles:
+                        self.visited_tiles.remove(new_pos)
+                        self.complete_tiles -= 1
+                    # Teleport to first teleporter
+                    self.player.movetoCoordinate(
+                        self.game.firstTeleporter.x, 
+                        self.game.firstTeleporter.y
+                    )
+                    self.can_teleport = False
+                    self.game.canTeleport = False
+                    reward += self.reward_config.get("teleport_reward", 0.0)
+                    # Track the new position after teleporting
+                    teleported_pos = (self.player.x, self.player.y)
+                    if teleported_pos not in self.visited_tiles:
+                        self.visited_tiles.add(teleported_pos)
+                        self.complete_tiles += 1
+                        reward += self.reward_config["new_tile_reward"]
             
             # Check for death (stuck)
             if self.player.checkDeath():
