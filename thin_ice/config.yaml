@@ -14,6 +14,7 @@ test:
   delay: 0.1  # Delay between rendered frames (seconds)
   random_episodes: 3  # Number of random agent episodes
   qlearning_episodes: 50  # Number of Q-learning episodes
+  heuristic: "manhattan" # Heuristic function for a star
 
 # RL Method Selection
 rl_method:
@@ -31,7 +32,7 @@ rl_method:
 # Reward Function Configuration
 rewards:
   # Tile visiting rewards
-  new_tile_reward: 0.1  # Reward for visiting a new tile
+  new_tile_reward: 1  # Reward for visiting a new tile
   
   # Completion rewards
   level_completion_reward: 5.0  # Reward for reaching exit

@@ -4,8 +4,13 @@ Tests the environment with a simple random agent and Q-learning agent
 """
 
 import gymnasium as gym
+import copy
+import memory
+import sys
 import numpy as np
 from thin_ice_env import ThinIceEnv
+from astar_utils import FrontierAStar, ThinIceState, ThinIceGoal, Heuristic
+from typing import Optional, Dict, Tuple
 import time
 import json
 import os
@@ -198,6 +203,76 @@ def test_q_learning(env, num_episodes=100, learning_rate=0.1, discount=0.95, eps
     
     return results
 
+def test_a_star(env, heuristic: str = "manhattan", render: bool = False, delay: float = 0.05):
+
+    import pdb
+    
+    # Set up
+    initial_state, _ = env.reset()
+    initial_state = ThinIceState(env.reward_config, env.player)
+    goal_state = ThinIceGoal(env.end_tile.x, env.end_tile.y)
+    heuristic = Heuristic(heuristic)
+    action_set_converter = {
+            0: (1, 0),   # right
+            1: (0, -1),  # up
+            2: (-1, 0),  # left
+            3: (0, 1),   # down
+        }
+    frontier = FrontierAStar(heuristic)
+    
+    frontier.prepare(goal_state)
+
+    # Clear the parent pointer and cost in order make sure that the initial state is a root node
+    initial_state.parent = None
+    initial_state.path_cost = 0
+
+    frontier.add(initial_state)
+    expanded = set()
+    
+    while True:
+        if frontier.is_empty():
+            print("-" * 40, file=sys.stderr)
+            print("FAILED TO FIND SOLUTION!", file=sys.stderr)
+            print("-" * 40, file=sys.stderr)
+            return False, [] # Failure to find a solution
+        
+        # Dequeue state from frontier and add to expanded set
+        new_state = frontier.pop()
+        expanded.add(new_state)
+        
+        # Check goal state
+        if goal_state.is_goal(new_state):
+            pdb.set_trace()
+            return True, new_state.extract_plan()
+        
+        # Expand new_state (0=right, 1=up, 2=left, 3=down)
+        for (action, (dx, dy)) in new_state.get_applicable_actions(action_set_converter):
+            # pdb.set_trace()
+            
+            # TODO: Ensure mutability child = new_state.result(action) aka return a new State object in the result method
+            child = ThinIceState(copy.copy(new_state.reward_config),
+                                 copy.copy(new_state.player), 
+                                 action,
+                                 new_state,
+                                 copy.copy(new_state.has_key),
+                                 copy.copy(new_state.can_teleport),
+                                 copy.copy(new_state.reset_once),
+                                 copy.copy(new_state.moved))
+            
+            # pdb.set_trace()
+            child = child.result(dx, dy)
+            
+            if child in expanded:
+                pdb.set_trace()
+            
+            if child not in expanded and not frontier.contains(child):
+                frontier.add(child)
+                
+            # should only be for best-first search, NOTE: Negative priority because of negative rewards
+            elif hasattr(frontier, "priority_queue") and frontier.contains(child) and frontier.priority_queue.get_priority(child) > frontier.f(child, goal_state):
+                pdb.set_trace()
+                frontier.priority_queue.change_priority(child, frontier.f(child, goal_state))
+
 
 def test_environment_basic():
     """Basic environment validation"""
@@ -334,12 +409,15 @@ if __name__ == "__main__":
     parser.add_argument('--qlearning-episodes', type=int, 
                        default=test_config.get("qlearning_episodes", 50),
                        help='Number of Q-learning episodes')
+    parser.add_argument('--heuristic', type=str,
+                        default=test_config.get("heuristic", "manhattan"),
+                        help="Which heuristic function to use in the a-star algorithm")
     parser.add_argument('--delay', type=float, 
                        default=test_config.get("delay", 0.1),
                        help='Delay between rendered frames (seconds)')
     parser.add_argument('--method', type=str,
-                       default=rl_config.get("method", "both"),
-                       choices=["random", "qlearning", "both"],
+                       default=rl_config.get("method", "all"),
+                       choices=["random", "qlearning", "astar", "all"],
                        help='RL method to use')
     args = parser.parse_args()
     
@@ -400,6 +478,14 @@ if __name__ == "__main__":
                                             epsilon=epsilon,
                                             render=args.render, delay=args.delay)
         all_results["qlearning_agent"] = qlearning_results
+    
+    if args.method in ["astar", "all"]:
+        print("\n")
+        
+        astar_results = test_a_star(env, 
+                                    heuristic=args.heuristic,
+                                    render=args.render,
+                                    delay=args.delay)
     
     env.close()
     
