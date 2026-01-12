@@ -19,6 +19,7 @@ import yaml
 from thin_ice.data.classes.Player import Player
 from baseline_models.random_agent import test_random_agent
 from baseline_models.q_learning_agent import test_q_learning
+from baseline_models.a_star_agent import test_a_star
 
 
 def test_environment_basic():
