@@ -4,19 +4,15 @@ Tests the environment with a simple random agent and Q-learning agent
 """
 
 import gymnasium as gym
-import copy
-import sys
 import numpy as np
+from thin_ice.thin_ice_env import ThinIceEnv
 import time
-from thin_ice_env import ThinIceEnv
-from astar_utils import FrontierAStar, ThinIceState, ThinIceGoal, Heuristic
-from typing import Optional, Dict, Tuple
 import json
 import os
 from datetime import datetime
 import argparse
 import yaml
-from data.classes.Player import Player
+import networkx as nx
 
 def test_random_agent(env, num_episodes=5, render=False, delay=0.1):
     """Test the environment with a random agent"""
@@ -203,151 +199,234 @@ def test_q_learning(env, num_episodes=100, learning_rate=0.1, discount=0.95, eps
     
     return results
 
-def test_a_star(env, heuristic: str = "manhattan", render: bool = False, delay: float = 0.05):
 
-    # Set up
-    initial_state, _ = env.reset()
+def test_astar(env, render=False, delay=0.05, max_steps=1000, replan_interval=1):
+    """
+    Test with A* pathfinding algorithm using NetworkX.
     
-    # Create initial state with a new player instance to avoid mutations
-    # We need to create a new Player instance for the initial state
-    initial_player = Player(env.game, env.player.x, env.player.y, env.settings)
-    initial_state = ThinIceState(env.reward_config, initial_player)
-    goal_state = ThinIceGoal(env.end_tile.x, env.end_tile.y)
-    heuristic_obj = Heuristic(heuristic)
-    action_set_converter = {
-            0: (1, 0),   # right
-            1: (0, -1),  # up
-            2: (-1, 0),  # left
-            3: (0, 1),   # down
+    Args:
+        env: The environment to test
+        render: Whether to render the environment
+        delay: Delay between rendered frames
+        max_steps: Maximum steps per episode
+        replan_interval: Replan every N steps (1 = replan after each step)
+    """
+    print("=" * 60)
+    print("Testing with A* Algorithm")
+    print("=" * 60)
+    
+    def manhattan_distance(pos1, pos2):
+        """Heuristic function: Manhattan distance"""
+        return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
+    
+    def is_walkable(grid, x, y, grid_width, grid_height, has_key=False):
+        """Check if a position is walkable"""
+        # Check bounds
+        if x < 0 or x >= grid_width or y < 0 or y >= grid_height:
+            return False
+        
+        # Check tile type
+        tile_type = grid[y, x]
+        
+        # Walls are not walkable
+        if tile_type == 1:  # WALL
+            return False
+        
+        # Keyholes require a key (tile type 7)
+        if tile_type == 7 and not has_key:
+            return False
+        
+        # All other tiles are walkable (empty, ice, exit, key, etc.)
+        return True
+    
+    def build_graph_from_observation(obs, grid_width, grid_height, has_key=False):
+        """Build a NetworkX graph from the current observation"""
+        G = nx.Graph()
+        grid = obs.reshape(grid_height, grid_width)
+        
+        # Add nodes for all walkable positions
+        for y in range(grid_height):
+            for x in range(grid_width):
+                if is_walkable(grid, x, y, grid_width, grid_height, has_key):
+                    G.add_node((x, y))
+        
+        # Add edges between adjacent walkable positions
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # right, left, down, up
+        for node in G.nodes():
+            x, y = node
+            for dx, dy in directions:
+                neighbor = (x + dx, y + dy)
+                if neighbor in G:
+                    # Edge weight is 1 (uniform cost)
+                    G.add_edge(node, neighbor, weight=1.0)
+        
+        return G
+    
+    def find_positions_in_grid(grid, grid_width, grid_height):
+        """Find player and exit positions in the grid"""
+        player_pos = None
+        exit_pos = None
+        
+        for y in range(grid_height):
+            for x in range(grid_width):
+                tile_type = grid[y, x]
+                if tile_type == 4:  # PLAYER
+                    player_pos = (x, y)
+                elif tile_type == 5:  # EXIT
+                    exit_pos = (x, y)
+        
+        return player_pos, exit_pos
+    
+    def path_to_actions(path):
+        """Convert a path (list of positions) to a list of actions"""
+        if len(path) < 2:
+            return []
+        
+        actions = []
+        action_map = {
+            (1, 0): 0,   # right
+            (-1, 0): 2,  # left
+            (0, 1): 3,   # down
+            (0, -1): 1,  # up
         }
-    frontier = FrontierAStar(heuristic_obj)
-    
-    frontier.prepare(goal_state)
-
-    # Clear the parent pointer and cost in order make sure that the initial state is a root node
-    initial_state.parent = None
-    initial_state.path_cost = 0
-
-    frontier.add(initial_state)
-    expanded = set()
-    
-    max_iterations = 1000000  # Safety limit
-    iteration = 0
-    
-    print("Searching for solution with A* algorithm...")
-    
-    while iteration < max_iterations:
-        iteration += 1
         
-        if frontier.is_empty():
-            print("-" * 40, file=sys.stderr)
-            print("FAILED TO FIND SOLUTION!", file=sys.stderr)
-            print("-" * 40, file=sys.stderr)
-            return False, [] # Failure to find a solution
+        for i in range(len(path) - 1):
+            current = path[i]
+            next_pos = path[i + 1]
+            dx = next_pos[0] - current[0]
+            dy = next_pos[1] - current[1]
+            action = action_map.get((dx, dy))
+            if action is not None:
+                actions.append(action)
         
-        # Dequeue state from frontier and add to expanded set
-        new_state = frontier.pop()
-        expanded.add(new_state)
-        
-        # Check goal state
-        if goal_state.is_goal(new_state):
-            plan = new_state.extract_plan()
-            print(f"Solution found in {iteration} iterations with {len(plan)} steps")
-            if new_state.moving_block_pos:
-                print(f"Final moving block position: {new_state.moving_block_pos}")
+        return actions
+    
+    results = []
+    
+    # Run one episode
+    obs, info = env.reset(seed=42)
+    total_reward = 0
+    steps = 0
+    terminated = False
+    truncated = False
+    episode_start_time = time.time()
+    
+    print(f"Initial distance to exit: {info['distance']}")
+    print(f"Total tiles to visit: {info['total_tiles']}")
+    
+    if render:
+        env.render()
+        time.sleep(delay)
+    
+    plan_step = 0
+    
+    while not terminated and not truncated:
+        # Replan if needed
+        if plan_step % replan_interval == 0:
+            # Build graph from current observation
+            grid = obs.reshape(env.grid_height, env.grid_width)
+            G = build_graph_from_observation(obs, env.grid_width, env.grid_height, 
+                                            has_key=info.get('has_key', False))
             
-            # If rendering is enabled, execute the plan step by step
-            if render:
-                print(f"\nExecuting solution with {len(plan)} steps...")
-                print("=" * 60)
-                
-                # Reset environment to initial state
-                env.reset()
-                
-                # Convert direction strings to action integers
-                direction_to_action = {
-                    "right": 0,
-                    "up": 1,
-                    "left": 2,
-                    "down": 3
-                }
-                
-                # Render initial state
-                env.render()
-                time.sleep(delay)
-                
-                # Execute plan step by step
-                total_reward = 0
-                for step_idx, direction in enumerate(plan, 1):
-                    action = direction_to_action[direction]
-                    
-                    # Take step
-                    obs, reward, terminated, truncated, info = env.step(action)
-                    total_reward += reward
-                    
-                    # Render the step
-                    env.render()
-                    print(f"Step {step_idx}/{len(plan)}: {direction.upper()} - Reward: {reward:.2f}, Total: {total_reward:.2f}")
-                    time.sleep(delay)
-                    
-                    if terminated or truncated:
-                        print(f"\nEpisode completed! Final reward: {total_reward:.2f}")
-                        if terminated:
-                            print("✓ Successfully reached the goal!")
+            # Find player and exit positions
+            player_pos, exit_pos = find_positions_in_grid(grid, env.grid_width, env.grid_height)
+            
+            if player_pos is None or exit_pos is None:
+                print("Warning: Could not find player or exit position")
+                break
+            
+            if player_pos not in G or exit_pos not in G:
+                print(f"Warning: Source or target not in graph. Source: {player_pos}, Target: {exit_pos}")
+                # Try to find a path to any reachable position
+                if player_pos in G:
+                    # Find closest reachable position to target
+                    if len(G.nodes()) > 0:
+                        closest = min(G.nodes(), 
+                                     key=lambda n: manhattan_distance(n, exit_pos) if n != player_pos else float('inf'))
+                        exit_pos = closest
+                    else:
                         break
-                
-                # Keep window open for a moment to see final state
-                if not terminated and not truncated:
-                    print(f"\nPlan executed. Final reward: {total_reward:.2f}")
-                time.sleep(delay * 2)
-                print("=" * 60)
+                else:
+                    break
             
-            return True, plan
+            try:
+                # Use A* to find path
+                path = nx.astar_path(G, player_pos, exit_pos, 
+                                    heuristic=lambda u, v: manhattan_distance(u, v),
+                                    weight='weight')
+                
+                # Convert path to actions
+                actions = path_to_actions(path)
+                
+                if len(actions) == 0:
+                    print("Warning: No path found or path is empty")
+                    # Try a random action as fallback
+                    action = env.action_space.sample()
+                else:
+                    action = actions[0]  # Take first action from path
+                    
+            except nx.NetworkXNoPath:
+                print("Warning: No path found to exit")
+                # Try a random action as fallback
+                action = env.action_space.sample()
+        else:
+            # Continue with previous plan (if we had one)
+            if 'actions' in locals() and len(actions) > 0:
+                action = actions.pop(0)
+            else:
+                action = env.action_space.sample()
         
-        # Expand new_state (0=right, 1=up, 2=left, 3=down)
-        for (action, (dx, dy)) in new_state.get_applicable_actions(action_set_converter):
-            
-            # CRITICAL FIX: Create a new Player instance for each child state
-            # This prevents mutations from affecting parent states
-            # The Player shares the game object (for collision checking) but has its own position
-            child_player = Player(
-                new_state.player.game, 
-                new_state.player.x, 
-                new_state.player.y, 
-                new_state.player.settings
-            )
-            
-            # Create child state with new player instance
-            child = ThinIceState(
-                new_state.reward_config,  # Dict is immutable enough for our purposes
-                child_player,
-                action,
-                new_state,
-                new_state.has_key,  # These are primitives, no need to copy
-                new_state.can_teleport,
-                new_state.reset_once,
-                new_state.moved,
-                new_state.keyhole_unlocked,  # Track keyhole unlock status
-                new_state.moving_block_pos  # Track moving block position
-            )
-            
-            # Apply the action
-            child = child.result(dx, dy)
-            
-            if child not in expanded and not frontier.contains(child):
-                frontier.add(child)
-                
-            # Update priority if we found a better path to this state
-            elif hasattr(frontier, "priority_queue") and frontier.contains(child):
-                current_priority = frontier.priority_queue.get_priority(child)
-                new_priority = frontier.f(child, goal_state)
-                if current_priority > new_priority:
-                    frontier.priority_queue.change_priority(child, new_priority)
+        # Execute action
+        obs, reward, terminated, truncated, info = env.step(action)
+        total_reward += reward
+        steps += 1
+        plan_step += 1
+        
+        if render:
+            env.render()
+            time.sleep(delay)
+        
+        if steps % 50 == 0:
+            print(f"  Step {steps}: Reward={total_reward:.2f}, Distance={info['distance']}, "
+                  f"Visited={info['visited_tiles']}/{info['total_tiles']}")
+        
+        if steps >= max_steps:
+            truncated = True
+            break
     
-    print("-" * 40, file=sys.stderr)
-    print(f"MAX ITERATIONS ({max_iterations}) REACHED!", file=sys.stderr)
-    print("-" * 40, file=sys.stderr)
-    return False, []
+    episode_time = time.time() - episode_start_time
+    episode_result = {
+        "episode": 1,
+        "steps": steps,
+        "total_reward": float(total_reward),
+        "terminated": terminated,
+        "truncated": truncated,
+        "visited_tiles": info['visited_tiles'],
+        "total_tiles": info['total_tiles'],
+        "complete_tiles": info['complete_tiles'],
+        "final_distance": info['distance'],
+        "has_key": info['has_key'],
+        "level": info['level'],
+        "time_seconds": episode_time
+    }
+    results.append(episode_result)
+    
+    print(f"\nEpisode finished: Steps={steps}, Total Reward={total_reward:.2f}, "
+          f"Terminated={terminated}, Visited Tiles={info['visited_tiles']}/{info['total_tiles']}, "
+          f"Time={episode_time:.2f}s")
+    
+    # Print summary
+    print("\n" + "=" * 60)
+    print("A* Algorithm Summary")
+    print("=" * 60)
+    print(f"Steps: {steps}")
+    print(f"Total Reward: {total_reward:.2f}")
+    print(f"Success: {terminated}")
+    print(f"Visited Tiles: {info['visited_tiles']}/{info['total_tiles']}")
+    print(f"Time: {episode_time:.2f}s")
+    print("=" * 60)
+    
+    return results
 
 
 def test_environment_basic():
@@ -478,23 +557,22 @@ if __name__ == "__main__":
                        help='Render the environment visually')
     parser.add_argument('--level', type=int, 
                        default=env_config.get("level", 1),
-                       help='Level to test (1-19), or 0 to test all levels sequentially')
+                       help='Level to test (1-19)')
     parser.add_argument('--random-episodes', type=int, 
                        default=test_config.get("random_episodes", 3),
                        help='Number of random agent episodes')
     parser.add_argument('--qlearning-episodes', type=int, 
                        default=test_config.get("qlearning_episodes", 50),
                        help='Number of Q-learning episodes')
-    parser.add_argument('--heuristic', type=str,
-                        default=test_config.get("heuristic", "manhattan"),
-                        help="Which heuristic function to use in the a-star algorithm")
     parser.add_argument('--delay', type=float, 
                        default=test_config.get("delay", 0.1),
                        help='Delay between rendered frames (seconds)')
     parser.add_argument('--method', type=str,
-                       default=rl_config.get("method", "all"),
-                       choices=["random", "qlearning", "astar", "all"],
+                       default=rl_config.get("method", "both"),
+                       choices=["random", "qlearning", "astar", "both"],
                        help='RL method to use')
+    parser.add_argument('--astar', action='store_true',
+                       help='Run A* pathfinding algorithm')
     args = parser.parse_args()
     
     # Reload config if custom path provided
@@ -529,163 +607,51 @@ if __name__ == "__main__":
     # Pass reward config to environment if available
     reward_config = config.get("rewards", {})
     
+    # Create environment with custom reward config
+    env = ThinIceEnv(level=args.level, render_mode=render_mode, headless=headless, reward_config=reward_config)
+    
     all_results = {}
     
-    # Handle A* method separately if testing all levels
-    if args.method in ["astar", "all"] and args.level == 0:
-        # Test all levels sequentially with A*
-        levels_to_test = list(range(1, 20))  # Levels 1-19
-        print("=" * 60)
-        print(f"Running A* on all levels (1-19) sequentially")
-        print("=" * 60)
-        
-        all_level_results = []
-        
-        for level_num in levels_to_test:
-            print(f"\n{'='*60}")
-            print(f"Level {level_num}")
-            print(f"{'='*60}")
-            
-            # Create environment for this level
-            level_env = ThinIceEnv(level=level_num, render_mode=render_mode, 
-                                  headless=headless, reward_config=reward_config)
-            
-            try:
-                success, plan = test_a_star(level_env, 
-                                           heuristic=args.heuristic,
-                                           render=args.render,
-                                           delay=args.delay)
-                
-                level_result = {
-                    "level": level_num,
-                    "success": success,
-                    "plan_length": len(plan) if plan else 0,
-                    "plan": plan if plan else []
-                }
-                all_level_results.append(level_result)
-                
-                if success:
-                    print(f"✓ Level {level_num}: Solution found with {len(plan)} steps")
-                else:
-                    print(f"✗ Level {level_num}: No solution found")
-                    
-            except Exception as e:
-                print(f"✗ Level {level_num}: Error - {e}")
-                import traceback
-                traceback.print_exc()
-                all_level_results.append({
-                    "level": level_num,
-                    "success": False,
-                    "plan_length": 0,
-                    "plan": [],
-                    "error": str(e)
-                })
-            finally:
-                level_env.close()
-        
-        # Print summary
-        print(f"\n{'='*60}")
-        print("Summary of All Levels")
-        print(f"{'='*60}")
-        successful = sum(1 for r in all_level_results if r["success"])
-        print(f"Successfully solved: {successful}/{len(all_level_results)} levels")
-        if successful > 0:
-            avg_steps = np.mean([r["plan_length"] for r in all_level_results if r["success"]])
-            print(f"Average solution length: {avg_steps:.1f} steps")
-        
-        # Store results
-        all_results["astar_all_levels"] = all_level_results
-        
-        # Skip other methods if only running A* on all levels
-        if args.method == "astar":
-            env = None  # No need to create env for other methods
-        else:
-            # Still need to run other methods on a single level
-            env = ThinIceEnv(level=args.level, render_mode=render_mode, 
-                            headless=headless, reward_config=reward_config)
-    else:
-        # Create environment for single level or other methods
-        env = ThinIceEnv(level=args.level, render_mode=render_mode, 
-                        headless=headless, reward_config=reward_config)
+    # Test based on method selection
+    if args.method in ["random", "both"]:
+        print("\n")
+        random_results = test_random_agent(env, num_episodes=args.random_episodes, 
+                                           render=args.render, delay=args.delay)
+        all_results["random_agent"] = random_results
     
-    # Test based on method selection (only if not already handled above)
-    if env is not None:
-        if args.method in ["random", "both"]:
-            print("\n")
-            random_results = test_random_agent(env, num_episodes=args.random_episodes, 
-                                               render=args.render, delay=args.delay)
-            all_results["random_agent"] = random_results
+    if args.method in ["qlearning", "both"]:
+        print("\n")
+        # Get Q-learning parameters from config
+        learning_rate = qlearning_config.get("learning_rate", 0.1)
+        discount = qlearning_config.get("discount", 0.95)
+        epsilon = qlearning_config.get("epsilon", 0.2)
         
-        if args.method in ["qlearning", "both"]:
-            print("\n")
-            # Get Q-learning parameters from config
-            learning_rate = qlearning_config.get("learning_rate", 0.1)
-            discount = qlearning_config.get("discount", 0.95)
-            epsilon = qlearning_config.get("epsilon", 0.2)
-            
-            qlearning_results = test_q_learning(env, num_episodes=args.qlearning_episodes, 
-                                                learning_rate=learning_rate, 
-                                                discount=discount, 
-                                                epsilon=epsilon,
-                                                render=args.render, delay=args.delay)
-            all_results["qlearning_agent"] = qlearning_results
-        
-        if args.method in ["astar", "all"] and args.level != 0:
-            # Single level A* test
-            print("\n")
-            astar_results = test_a_star(env, 
-                                        heuristic=args.heuristic,
-                                        render=args.render,
-                                        delay=args.delay)
-            all_results["astar_single"] = astar_results
-        
-        env.close()
+        qlearning_results = test_q_learning(env, num_episodes=args.qlearning_episodes, 
+                                            learning_rate=learning_rate, 
+                                            discount=discount, 
+                                            epsilon=epsilon,
+                                            render=args.render, delay=args.delay)
+        all_results["qlearning_agent"] = qlearning_results
+    
+    if args.method == "astar" or args.astar:
+        print("\n")
+        astar_results = test_astar(env, render=args.render, delay=args.delay, max_steps=500)
+        all_results["astar_agent"] = astar_results
+    
+    env.close()
     
     # Save all results
     results_config = config.get("results", {})
     if results_config.get("save_results", True):
-        # Handle A* all levels results separately
-        if "astar_all_levels" in all_results:
+        # Combine all results
+        all_episode_results = []
+        for method_results in all_results.values():
+            all_episode_results.extend(method_results)
+        
+        if all_episode_results:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             results_dir = results_config.get("results_dir", "test_results")
-            os.makedirs(results_dir, exist_ok=True)
-            filename = f"astar_all_levels_{timestamp}.json"
-            filepath = os.path.join(results_dir, filename)
-            
-            output = {
-                "timestamp": datetime.now().isoformat(),
-                "method": "astar",
-                "heuristic": args.heuristic if args.method in ["astar", "all"] else None,
-                "levels": all_results["astar_all_levels"],
-                "summary": {
-                    "total_levels": len(all_results["astar_all_levels"]),
-                    "successful_levels": sum(1 for r in all_results["astar_all_levels"] if r["success"]),
-                    "failed_levels": sum(1 for r in all_results["astar_all_levels"] if not r["success"]),
-                    "avg_plan_length": float(np.mean([r["plan_length"] for r in all_results["astar_all_levels"] if r["success"]])) if any(r["success"] for r in all_results["astar_all_levels"]) else 0.0
-                }
-            }
-            
-            with open(filepath, 'w') as f:
-                json.dump(output, f, indent=2)
-            
-            print(f"\nResults saved to: {filepath}")
-            print(f"Summary:")
-            print(f"  Successful: {output['summary']['successful_levels']}/{output['summary']['total_levels']} levels")
-            if output['summary']['avg_plan_length'] > 0:
-                print(f"  Average plan length: {output['summary']['avg_plan_length']:.1f} steps")
-        
-        # Also save other results if present
-        other_results = {k: v for k, v in all_results.items() if k != "astar_all_levels"}
-        if other_results:
-            all_episode_results = []
-            for method_results in other_results.values():
-                if isinstance(method_results, list):
-                    all_episode_results.extend(method_results)
-            
-            if all_episode_results:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                results_dir = results_config.get("results_dir", "test_results")
-                filename = f"test_results_{timestamp}.json"
-                save_results(all_episode_results, filename)
+            filename = f"test_results_{timestamp}.json"
+            save_results(all_episode_results, filename)
     
     print("\nAll tests completed!")

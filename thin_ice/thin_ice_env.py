@@ -141,7 +141,7 @@ class ThinIceEnv(gym.Env):
         
         # Load settings
         try:
-            flags_path = _resolve_path("thin_ice/flags.yaml")
+            flags_path = _resolve_path("../configs/flags.yaml")
             with open(flags_path) as stream:
                 self.settings = yaml.safe_load(stream)
         except:

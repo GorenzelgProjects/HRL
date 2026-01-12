@@ -1,5 +1,7 @@
 docs/site/
 
+test_results/
+
 # other local dev info
 .vscode/
 

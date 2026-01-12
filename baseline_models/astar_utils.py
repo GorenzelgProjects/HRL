@@ -3,12 +3,11 @@ from __future__ import annotations
 import heapq
 import itertools
 import numpy as np
-import copy
 from typing import Optional, Dict, Tuple, TYPE_CHECKING
-from data.classes.settings import *
+from thin_ice.data.classes.settings import *
 
 if TYPE_CHECKING:
-    from data.classes.Player import Player
+    from thin_ice.data.classes.Player import Player
 
 class PriorityQueue:
 

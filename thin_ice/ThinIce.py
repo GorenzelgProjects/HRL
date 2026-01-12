@@ -649,7 +649,7 @@ class ScoreScreen():
         
 
 # Load YAML settings file
-with open("thin_ice/flags.yaml") as stream:
+with open("../configs/flags.yaml") as stream:
     try:
         settings = yaml.safe_load(stream)
     except yaml.YAMLError as exc:
