@@ -229,3 +229,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+training_output/agents/agent_episode_100_level_1.pt
+training_output/agents/agent_episode_100_level_1.json
+plots/training_metrics_level_1.png
+*.json
+*.pt
+*.png
