@@ -223,6 +223,8 @@ class ThinIceState():
     
     def _block_collides_with_walls(self, block_x, block_y):
         """Check if moving block would collide with walls at given position"""
+        from thin_ice.data.classes.Immovable import KeyHole
+        
         for wall in self.player.game.walls:
             # Skip keyhole if it's unlocked
             if isinstance(wall, KeyHole) and self.keyhole_unlocked:
@@ -235,6 +237,9 @@ class ThinIceState():
         """Check collision with walls, excluding keyhole if it's unlocked"""
         target_x = self.player.x + dx
         target_y = self.player.y + dy
+        
+        # Import KeyHole for isinstance check
+        from thin_ice.data.classes.Immovable import KeyHole
         
         for wall in self.player.game.walls:
             # Skip keyhole if it's unlocked
