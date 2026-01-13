@@ -1,4 +1,4 @@
-from astar_utils import *
+from baseline_models.astar_utils import *
 import sys
 import time
 
