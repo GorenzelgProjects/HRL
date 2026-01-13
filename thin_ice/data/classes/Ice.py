@@ -1,5 +1,5 @@
 import pygame as pg
-from data.classes.settings import *
+from thin_ice.data.classes.settings import *
 class Ice(pg.sprite.Sprite):
     ''' This class represents an ice tile in game '''
     

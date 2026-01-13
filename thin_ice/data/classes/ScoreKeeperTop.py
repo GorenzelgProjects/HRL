@@ -1,5 +1,5 @@
 import pygame as pg
-from data.classes.settings import *
+from thin_ice.data.classes.settings import *
 class ScoreKeeperTop(pg.sprite.Sprite):
     ''' This class defines the scoreboard in where you keep track of the status of the player '''
     

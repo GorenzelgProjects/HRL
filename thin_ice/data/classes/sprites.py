@@ -5,18 +5,18 @@ Description: Classes used for the main program
 '''
 
 # Importing used classes
-from data.classes.settings import *
-from data.classes.BeginMenu import *
-from data.classes.Spritesheet import *
-from data.classes.Button import *
-from data.classes.Player import *
-from data.classes.Immovable import *
-from data.classes.Movable import *
-from data.classes.Item import *
-from data.classes.Ice import *
-from data.classes.Unused import *
-from data.classes.noWaterTile import *
-from data.classes.MovingBlock import *
-from data.classes.ScoreKeeperTop import *
-from data.classes.ScoreKeeperBottom import *
+from thin_ice.data.classes.settings import *
+from thin_ice.data.classes.BeginMenu import *
+from thin_ice.data.classes.Spritesheet import *
+from thin_ice.data.classes.Button import *
+from thin_ice.data.classes.Player import *
+from thin_ice.data.classes.Immovable import *
+from thin_ice.data.classes.Movable import *
+from thin_ice.data.classes.Item import *
+from thin_ice.data.classes.Ice import *
+from thin_ice.data.classes.Unused import *
+from thin_ice.data.classes.noWaterTile import *
+from thin_ice.data.classes.MovingBlock import *
+from thin_ice.data.classes.ScoreKeeperTop import *
+from thin_ice.data.classes.ScoreKeeperBottom import *
 

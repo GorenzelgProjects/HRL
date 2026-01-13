@@ -1,5 +1,5 @@
 import pygame as pg
-from data.classes.settings import *
+from thin_ice.data.classes.settings import *
 class Immovable(pg.sprite.Sprite):
     ''' This class represents a tile in the game that you won't be able to move through '''
     def __init__(self, game, x, y):

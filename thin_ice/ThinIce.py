@@ -5,7 +5,7 @@ Description: Pygame remake of Club Penguin's Thin-ice
 '''
 
 # Import classes used for the game
-from data.classes.sprites import *
+from thin_ice.data.classes.sprites import *
 from sys import exit
 
 import yaml

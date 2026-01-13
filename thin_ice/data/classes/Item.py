@@ -1,5 +1,5 @@
 import pygame as pg
-from data.classes.settings import *
+from thin_ice.data.classes.settings import *
 
 class Item(pg.sprite.Sprite):
     ''' This class represents sprites that can be picked up 

@@ -1,5 +1,5 @@
 import pygame as pg
-from data.classes.settings import *
+from thin_ice.data.classes.settings import *
 class Unused(pg.sprite.Sprite):
     ''' This class represents an unused tile in game '''
     def __init__(self, game, x, y):

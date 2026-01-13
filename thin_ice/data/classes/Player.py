@@ -1,5 +1,5 @@
 import pygame as pg
-from data.classes.settings import *
+from thin_ice.data.classes.settings import *
 from data.classes.Immovable import Water
 from data.classes.Movable import Free
 class Player(pg.sprite.Sprite):

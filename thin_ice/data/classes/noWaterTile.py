@@ -1,5 +1,5 @@
 import pygame as pg
-from data.classes.settings import *
+from thin_ice.data.classes.settings import *
 class noWaterTile(pg.sprite.Sprite):
     ''' This class defines a tile where water will not be created when the player leaves the tile '''
     def __init__(self, game, x, y):

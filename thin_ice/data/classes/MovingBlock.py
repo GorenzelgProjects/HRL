@@ -1,5 +1,5 @@
 import pygame as pg
-from data.classes.settings import *
+from thin_ice.data.classes.settings import *
 class MovingBlock(pg.sprite.Sprite):
     ''' This class defines a block that is pushed by the player '''
     
