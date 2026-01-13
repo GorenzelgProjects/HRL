@@ -3,9 +3,10 @@ from __future__ import annotations
 import heapq
 import itertools
 import numpy as np
-from typing import Optional, Dict, Tuple, TYPE_CHECKING
+from typing import Optional, Dict, Tuple
 from thin_ice.data.classes.settings import *
 from thin_ice.data.classes.Player import Player
+from thin_ice.data.classes.Immovable import KeyHole
 
 class PriorityQueue:
 
