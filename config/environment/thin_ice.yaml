@@ -1,0 +1,39 @@
+defaults:
+  - base
+
+env_name: thin_ice
+
+generate_water: true
+
+# Reward Function Configuration
+rewards:
+  # Tile visiting rewards
+  new_tile_reward: 1  # Reward for visiting a new tile
+  
+  # Completion rewards
+  level_completion_reward: 5.0  # Reward for reaching exit
+  perfect_completion_bonus: 10.0  # Bonus if all tiles visited before exit
+  
+  # Item collection rewards
+  key_collection_reward: 1.0  # Reward for collecting key
+  keyhole_unlock_reward: 1.0  # Reward for unlocking keyhole
+  treasure_collection_reward: 2.0  # Reward for collecting treasure
+  
+  # Penalties
+  invalid_move_penalty: -0.01  # Penalty for invalid moves
+  death_penalty: -5.0  # Penalty for dying (getting stuck)
+  
+  # Distance-based rewards (optional)
+  use_distance_reward: false  # Enable distance-based shaping
+  distance_reward_scale: -0.01  # Negative reward per unit distance
+
+# Observation Space Configuration
+observation:
+  # Observation type: "grid" (flattened grid) or "dict" (structured)
+  type: "grid"
+  
+  # Grid encoding:
+  # 0 = empty/free, 1 = wall, 2 = ice, 3 = water, 4 = player, 5 = exit, 6 = key, 7 = keyhole
+  include_agent_position: true
+  include_exit_position: true
+  include_key_status: true

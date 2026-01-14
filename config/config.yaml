@@ -1,0 +1,36 @@
+defaults:
+  - environment: default
+  - models: default
+  - _self_
+  - experiment: astar_example
+
+# Logging Configuration
+logging:
+  verbose: true  # Print detailed logs
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_file: null  # Path to log file (null = no file logging)
+
+save_dir: logs/${experiment.name}
+
+# Results Configuration
+results:
+  save_results: true  # Save test results to file
+  results_dir: ${save_dir}/test_results  # Directory for results
+  save_format: "json"  # "json" or "csv"
+  include_episode_details: true  # Include full episode data
+
+timestamp: T${now:%Y-%m-%d-%H-%M-%S}
+
+experiment:
+  name: ${timestamp}
+  seed: 42
+  run_training: true # Train and save policy/plan 
+  render_during_training: false
+  run_testing: true # Test saved policy/plan on all levels
+  render_during_testing: true
+
+
+hydra:
+  run:
+    dir: ${save_dir}
+  output_subdir: ./hydra

@@ -1,0 +1,2 @@
+astar:
+  heuristic: "manhattan" # Heuristic function for a star

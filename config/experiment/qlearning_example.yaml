@@ -1,0 +1,4 @@
+defaults:
+  - override environment: thin_ice
+  - override models:
+    - qlearning

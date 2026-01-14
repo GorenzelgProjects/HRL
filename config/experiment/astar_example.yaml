@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - override /environment: thin_ice
+  - override /models: [astar]
+  - _self_
+
+experiment:
+  name: astar_${timestamp}
