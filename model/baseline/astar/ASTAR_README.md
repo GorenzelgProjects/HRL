@@ -208,7 +208,7 @@ For more control, you can implement your own search loop:
 ```python
 from thin_ice_env import ThinIceEnv
 from astar_utils import FrontierAStar, ThinIceState, ThinIceGoal, Heuristic
-from data.classes.Player import Player
+from environment.thin_ice.data.classes.Player import Player
 
 env = ThinIceEnv(level=1, render_mode=None, headless=True)
 obs, info = env.reset()

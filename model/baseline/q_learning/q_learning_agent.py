@@ -1,7 +1,7 @@
 import numpy as np
 import time
 
-def test_q_learning(env, num_episodes=100, learning_rate=0.1, discount=0.95, epsilon=0.1, render=False, delay=0.05):
+def train_q_learning(env, num_episodes=100, learning_rate=0.1, discount=0.95, epsilon=0.1, render=False, delay=0.05):
     """Test with a simple Q-learning agent"""
     print("=" * 60)
     print("Testing with Q-Learning Agent")

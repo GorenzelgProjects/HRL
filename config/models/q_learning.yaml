@@ -1,4 +1,4 @@
-qlearning:
+q_learning:
   learning_rate: 0.1
   discount: 0.95
   epsilon: 0.2  # Exploration rate

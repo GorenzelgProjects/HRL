@@ -1,5 +1,5 @@
 defaults:
   - astar
-  - qlearning
+  - q_learning
   - random
-  - option_critic
+  # - option_critic

@@ -1,7 +1,7 @@
 import pygame as pg
 from environment.thin_ice.data.classes.settings import *
-from data.classes.Immovable import Water
-from data.classes.Movable import Free
+from environment.thin_ice.data.classes.Immovable import Water
+from environment.thin_ice.data.classes.Movable import Free
 class Player(pg.sprite.Sprite):
     ''' This class defines the sprite the player controls in the game.'''
 

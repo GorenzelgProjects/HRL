@@ -3,7 +3,8 @@ defaults:
 
 env_name: thin_ice
 
-generate_water: true
+env_specific_settings:
+  generate_water: false
 
 # Reward Function Configuration
 rewards:

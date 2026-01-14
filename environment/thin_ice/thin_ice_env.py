@@ -48,9 +48,8 @@ def _patched_pg_image_load(filename):
 # Apply the patch immediately
 pg.image.load = _patched_pg_image_load
 
-from data.classes.sprites import *
-from data.classes.settings import *
-import yaml
+from environment.thin_ice.data.classes.sprites import *
+from environment.thin_ice.data.classes.settings import *
 
 
 class ThinIceEnv(gym.Env):
@@ -63,7 +62,7 @@ class ThinIceEnv(gym.Env):
     
     metadata = {"render_modes": ["human", "rgb_array", "ansi"], "render_fps": 24}
     
-    def __init__(self, level: int = 1, render_mode: Optional[str] = None, headless: bool = True, reward_config: Optional[Dict] = None):
+    def __init__(self, level: int = 1, render_mode: Optional[str] = None, headless: bool = True, reward_config: Optional[Dict] = None, generate_water: bool = True):
         """
         Initialize the Thin Ice environment.
         
@@ -139,13 +138,8 @@ class ThinIceEnv(gym.Env):
             # We need a display for image loading
             raise RuntimeError(f"Failed to initialize pygame display (required for image loading): {e}")
         
-        # Load settings
-        try:
-            flags_path = _resolve_path("../configs/flags.yaml")
-            with open(flags_path) as stream:
-                self.settings = yaml.safe_load(stream)
-        except:
-            self.settings = {"generate_water": True}
+
+        self.settings = {"generate_water": generate_water}
         
         # Grid dimensions
         self.grid_width = int(GRIDWIDTH)

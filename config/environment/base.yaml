@@ -1,5 +1,12 @@
 level: 1  # Level to test (1-19)
 max_episode_steps: 1000  # Maximum steps per episode
-headless: true  # Run without display (faster training)
-render_mode: null  # "human", "ansi", "semi", or null
 
+render_true_settings:
+  headless: false  # Run without display (faster training)
+  render_mode: human  # "human", "ansi", "semi", or null
+  delay: 0.05
+
+render_false_settings:
+  headless: true  # Run without display (faster training)
+  render_mode: null  # "human", "ansi", "semi", or null
+  delay: 0

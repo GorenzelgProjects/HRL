@@ -1,6 +1,6 @@
 import time
 
-def test_random_agent(env, num_episodes=5, render=False, delay=0.1):
+def train_random_agent(env, num_episodes=5, render=False, delay=0.1):
     """Test the environment with a random agent"""
     print("=" * 60)
     print("Testing with Random Agent")
