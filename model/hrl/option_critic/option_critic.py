@@ -373,6 +373,8 @@ class OptionCritic():
         option.upsilon.grad = None
         advantage = self.get_Q_Omega(new_state_idx, option_idx) - torch.max(self.get_Q_Omega(new_state_idx))
         
+        # TODO: Consider if it makes sense that gradients are only updated for the
+        # termination function when we have chosen a sub-optional option
         beta = option.beta(new_state_idx)
         beta.backward()
         
