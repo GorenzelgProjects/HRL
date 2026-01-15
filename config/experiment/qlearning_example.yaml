@@ -1,0 +1,9 @@
+# @package _global_
+defaults:
+  - override /environment: thin_ice
+  - override /models: [q_learning]
+  - _self_
+
+experiment:
+  name: q_learning_${timestamp}
+  levels: all

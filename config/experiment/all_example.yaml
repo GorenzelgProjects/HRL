@@ -1,0 +1,8 @@
+# @package _global_
+defaults:
+  - override /environment: thin_ice
+  - _self_
+
+experiment:
+  name: all_${timestamp}
+  levels: [1]

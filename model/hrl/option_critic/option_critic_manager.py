@@ -1,0 +1,81 @@
+import logging
+import os
+from typing import Callable
+
+import gymnasium as gym
+
+from model.base_manager import BaseModelManager
+from model.hrl.option_critic.train_agent import train_agent
+
+class OptionCriticManager(BaseModelManager):
+    def __init__(self, 
+                 n_states: int,
+                 n_options: int,
+                 n_actions: int,
+                 n_steps: int,
+                 n_episodes: int,
+                 epsilon: float,
+                 gamma: float,
+                 alpha_critic: float,
+                 alpha_theta: float,
+                 alpha_upsilon: float,
+                 temperature: float,
+                 save_frequency: int,
+                 verbose: bool,
+                 quiet: bool,
+                 save_dir: str,
+                 state_mapping_dir: str,
+                 partial_env: Callable[[int], gym.Env],) -> None:
+
+        self.n_states = n_states
+        self.n_options = n_options
+        self.n_actions = n_actions
+        
+        self.n_steps = n_steps
+        self.n_episodes = n_episodes
+        
+        self.epsilon = epsilon
+        self.gamma = gamma
+        self.alpha_critic = alpha_critic
+        self.alpha_theta = alpha_theta
+        self.alpha_upsilon = alpha_upsilon
+        self.temperature = temperature
+        
+        self.save_frequency = save_frequency
+        self.state_mapping_dir = state_mapping_dir
+        self.verbose = verbose and not quiet
+        
+        self.save_dir = os.path.join(save_dir, "option_critic")
+        super().__init__(partial_env)
+    
+    def train(self, levels: list[int], render: bool = False, delay: float = 0.05) -> None:
+
+        for level_num in levels:
+            logging.info(f"\n{'='*60}")
+            logging.info(f"Level {level_num}")
+            logging.info(f"{'='*60}")
+            level_env = self.partial_env(level_num)
+            
+            train_agent(env=level_env,
+                                 level=level_num,
+                                 num_episodes=self.n_episodes,
+                                 n_options=self.n_options,
+                                 n_states=self.n_states,
+                                 n_actions=self.n_actions,
+                                 gamma=self.gamma,
+                                 alpha_critic=self.alpha_critic,
+                                 alpha_theta=self.alpha_theta,
+                                 alpha_upsilon=self.alpha_upsilon,
+                                 epsilon=self.epsilon,
+                                 n_steps=self.n_steps,
+                                 temperature=self.temperature,
+                                 save_frequency=self.save_frequency,
+                                 output_dir=self.save_dir,
+                                 state_mapping_dir=self.state_mapping_dir,
+                                 verbose=self.verbose)
+            
+        return
+    
+    def test(self, levels: list[int], render: bool, delay: float):
+        logging.warning("Not implemented yet")
+        return

@@ -1,0 +1,30 @@
+defaults:
+  - environment: default
+  - models: default
+  - _self_
+  - experiment: astar_example
+
+# Logging Configuration
+logging:
+  verbose: true  # Print detailed logs
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_file: null  # Path to log file (null = no file logging)
+
+save_dir: logs/${experiment.name}
+
+timestamp: T${now:%Y-%m-%d-%H-%M-%S}
+
+experiment:
+  name: ${timestamp}
+  seed: 42
+  run_training: true # Train and save policy/plan 
+  run_testing: true # Test saved policy/plan on all levels
+  render: true
+  levels: ???
+
+
+
+hydra:
+  run:
+    dir: ${save_dir}
+  output_subdir: ./hydra

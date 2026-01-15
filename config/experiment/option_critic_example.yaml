@@ -1,0 +1,9 @@
+# @package _global_
+defaults:
+  - override /environment: thin_ice
+  - override /models: [option_critic]
+  - _self_
+
+experiment:
+  name: option_critic_${timestamp}
+  levels: all
