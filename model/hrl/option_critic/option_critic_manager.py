@@ -5,8 +5,6 @@ from typing import Callable
 import gymnasium as gym
 
 from model.base_manager import BaseModelManager
-from model.hrl.option_critic.option_critic import OptionCritic
-from model.hrl.option_critic.state_manager import StateManager
 from model.hrl.option_critic.train_agent import train_agent
 
 class OptionCriticManager(BaseModelManager):
@@ -47,10 +45,10 @@ class OptionCriticManager(BaseModelManager):
         self.state_mapping_dir = state_mapping_dir
         self.verbose = verbose and not quiet
         
-        self.save_dir = os.path.join(save_dir, "q_learning")
+        self.save_dir = os.path.join(save_dir, "option_critic")
         super().__init__(partial_env)
     
-    def train(self, levels: list[int]):
+    def train(self, levels: list[int], render: bool = False, delay: float = 0.05) -> None:
 
         for level_num in levels:
             logging.info(f"\n{'='*60}")
@@ -78,6 +76,6 @@ class OptionCriticManager(BaseModelManager):
             
         return
     
-    def test():
-        
+    def test(self, levels: list[int], render: bool, delay: float):
+        logging.warning("Not implemented yet")
         return

@@ -159,7 +159,6 @@ def train_agent(
     save_frequency: int = 10,
     output_dir: str = "training_output",
     state_mapping_dir: str = "environment/state_mapping",
-    reward_config: str = "config/environment/thin_ice.yaml",
     verbose: bool = True,
 ) -> Tuple[OptionCritic, List[Dict]]:
     """Train OptionCritic agent for specified number of episodes
@@ -198,12 +197,6 @@ def train_agent(
     log_file = setup_logging(log_dir, verbose)
     logging.info(f"Starting training for level {level}")
     logging.info(f"Training parameters: {locals()}")
-    
-    # # Create environment
-    # logging.info("Creating environment...")
-    # with open(reward_config, 'r') as f:
-    #     config = yaml.safe_load(f)
-    # env = ThinIceEnv(level=level, render_mode=None, headless=True, reward_config=config["rewards"])
     
     # Create state manager
     state_manager = StateManager(Path(state_mapping_dir))
@@ -263,81 +256,3 @@ def train_agent(
     logging.info(f"Log file: {log_file}")
     
     return agent, all_results
-
-
-def main():
-    """Main entry point with command-line argument parsing"""
-    parser = argparse.ArgumentParser(description="Train OptionCritic agent on Thin Ice")
-    
-    # Environment parameters
-    parser.add_argument("--level", type=int, default=1, help="Level number (1-19)")
-    parser.add_argument("--num_episodes", type=int, default=100, help="Number of training episodes")
-    
-    # Agent parameters
-    parser.add_argument("--n_options", type=int, default=4, help="Number of options")
-    parser.add_argument("--n_states", type=int, default=1000, help="Initial estimate of number of states")
-    parser.add_argument("--n_actions", type=int, default=4, help="Number of actions")
-    parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
-    parser.add_argument("--alpha_critic", type=float, default=0.5, help="Critic learning rate")
-    parser.add_argument("--alpha_theta", type=float, default=0.25, help="Intra-option policy learning rate")
-    parser.add_argument("--alpha_upsilon", type=float, default=0.25, help="Termination function learning rate")
-    parser.add_argument("--epsilon", type=float, default=0.1, help="Exploration parameter")
-    parser.add_argument("--n_steps", type=int, default=1000, help="Maximum steps per episode")
-    parser.add_argument("--temperature", type=float, default=1.0, help="Temperature for option policy")
-    
-    # Training parameters
-    parser.add_argument("--save_frequency", type=int, default=10, help="Save agent every N episodes")
-    parser.add_argument("--output_dir", type=str, default="training_output", help="Output directory")
-    parser.add_argument("--state_mapping_dir", type=str, default="environment/state_mapping", help="Level mapping directory")
-    parser.add_argument("--verbose", action="store_true", help="Print detailed logs")
-    parser.add_argument("--quiet", action="store_true", help="Suppress output")
-    
-    parser.add_argument("--config", type=str, default="configs/config.yaml", help="Suppress output")
-    
-    args = parser.parse_args()
-    
-    verbose = args.verbose and not args.quiet
-    state_mapping_dir = args.state_mapping_dir
-    
-    # Train agent
-    _, results = train_agent(
-        level=args.level,
-        num_episodes=args.num_episodes,
-        n_options=args.n_options,
-        n_states=args.n_states,
-        n_actions=args.n_actions,
-        gamma=args.gamma,
-        alpha_critic=args.alpha_critic,
-        alpha_theta=args.alpha_theta,
-        alpha_upsilon=args.alpha_upsilon,
-        epsilon=args.epsilon,
-        n_steps=args.n_steps,
-        temperature=args.temperature,
-        save_frequency=args.save_frequency,
-        output_dir=args.output_dir,
-        reward_config = args.config,
-        state_mapping_dir=state_mapping_dir,
-        verbose=verbose,
-    )
-    
-    # Print summary
-    if verbose:
-        print("\n" + "=" * 60)
-        print("Training Summary")
-        print("=" * 60)
-        print(f"Total episodes: {len(results)}")
-        if results:
-            avg_steps = np.mean([r['total_steps'] for r in results])
-            avg_reward = np.mean([r['total_reward'] for r in results])
-            avg_options = np.mean([r['num_options_used'] for r in results])
-            completion_rate = np.mean([1 if r['terminated'] else 0 for r in results])
-            print(f"Average steps per episode: {avg_steps:.2f}")
-            print(f"Average reward per episode: {avg_reward:.2f}")
-            print(f"Average options used per episode: {avg_options:.2f}")
-            print(f"Completion rate: {completion_rate*100:.1f}%")
-        print(f"Results saved to: {args.output_dir}")
-        print("=" * 60)
-
-
-if __name__ == "__main__":
-    main()
