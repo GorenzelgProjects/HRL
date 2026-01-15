@@ -413,6 +413,9 @@ class ThinIceEnv(gym.Env):
                     else:
                         self.player.movetoCoordinate(col, row)
                     total_free += 1
+
+                    # Add start position to visited tiles
+                    self.visited_tiles.add((self.player.x, self.player.y))
         
         self.total_tiles = total_free - (2 * 19)  # Subtract top/bottom menu rows
         self.game.endTile = self.end_tile

@@ -2,6 +2,7 @@ docs/site/
 
 logs/
 test_results/
+environment/state_mapping
 
 # other local dev info
 .vscode/
@@ -237,6 +238,7 @@ __marimo__/
 training_output/agents/agent_episode_100_level_1.pt
 training_output/agents/agent_episode_100_level_1.json
 plots/training_metrics_level_1.png
+plots/
 *.json
 *.pt
 *.png

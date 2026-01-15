@@ -8,14 +8,13 @@ and saves the trained agent, options, and training results.
 import argparse
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Tuple
-from collections import defaultdict
 import numpy as np
 import torch
+import yaml
 
 # Add project root to Python path
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -24,6 +23,7 @@ if str(project_root) not in sys.path:
 
 from environment.thin_ice.thin_ice_env import ThinIceEnv
 from model.hrl.option_critic.option_critic import OptionCritic
+from model.hrl.option_critic.state_manager import StateManager
 
 
 def setup_logging(log_dir: Path, verbose: bool = True):
@@ -40,93 +40,6 @@ def setup_logging(log_dir: Path, verbose: bool = True):
         ]
     )
     return log_file
-
-
-def train_episode(agent: OptionCritic, env: ThinIceEnv, temperature: float, episode: int) -> Dict:
-    """Train the agent for one episode
-    
-    Args:
-        agent: The OptionCritic agent
-        env: The ThinIceEnv environment
-        temperature: Temperature parameter for option policy
-        episode: Current episode number
-        
-    Returns:
-        Dictionary with episode statistics
-    """
-    # Get level from environment
-    level = getattr(env, 'level', None) or getattr(env, 'current_level', None)
-    
-    # Reset environment
-    state, info = env.reset()
-    if level is None and 'level' in info:
-        level = info['level']
-    
-    state_idx = agent._state_to_idx(state, level=level)
-    
-    # Store episode data
-    option_sequence = []
-    action_sequence = defaultdict(list)
-    rewards = []
-    total_reward = 0.0
-    step = 0
-    
-    # Pick an initial option
-    option = agent.choose_new_option(state_idx)
-    option_sequence.append(option.idx)
-    
-    # Run episode
-    terminated = False
-    truncated = False
-    while not (terminated or truncated):
-        if step >= agent.n_steps:
-            break
-        
-        action = option.choose_action(state_idx, temperature)
-        action_sequence[option.idx].append(action)
-        
-        new_state, reward, terminated, truncated, step_info = env.step(action)
-        new_state_idx = agent._state_to_idx(new_state, level=level)
-        
-        rewards.append(reward)
-        total_reward += reward
-        
-        # Options evaluation
-        agent.options_evaluation(state_idx, reward, new_state_idx, option, action, terminated)
-        
-        # Options improvement
-        agent.options_improvement(state_idx, new_state_idx, option, action, temperature)
-        
-        # Pick new option if the previous terminates
-        termination_prob = option.beta(new_state_idx)
-        if torch.rand(1).item() < termination_prob:
-            option = agent.choose_new_option(new_state_idx)
-            option_sequence.append(option.idx)
-        
-        state_idx = new_state_idx
-        step += 1
-    
-    # Save state mapping after episode
-    if level is not None:
-        agent._save_state_mapping(level)
-    
-    # Calculate episode statistics
-    episode_stats = {
-        'episode': episode,
-        'level': level,
-        'option_sequence': option_sequence,
-        'action_sequence': {str(k): v for k, v in action_sequence.items()},  # Convert to string keys for JSON
-        'rewards': rewards,
-        'total_reward': total_reward,
-        'num_options_used': len(set(option_sequence)),
-        'total_steps': step,
-        'num_options_switches': len(option_sequence) - 1,
-        'terminated': terminated,
-        'truncated': truncated,
-    }
-    
-    return episode_stats
-
 
 def save_agent(agent: OptionCritic, save_dir: Path, episode: int, level: int):
     """Save the trained agent to disk
@@ -152,7 +65,7 @@ def save_agent(agent: OptionCritic, save_dir: Path, episode: int, level: int):
         'alpha_upsilon': agent.alpha_upsilon,
         'epsilon': agent.epsilon,
         'n_steps': agent.n_steps,
-        'n_unique_states': agent.n_unique_states,
+        'n_unique_states': agent.state_manager.n_unique_states,
         'Q_Omega_table': agent.Q_Omega_table.detach().cpu().numpy().tolist(),
         'Q_U_table': agent.Q_U_table.detach().cpu().numpy().tolist(),
     }
@@ -244,6 +157,8 @@ def train_agent(
     temperature: float = 1.0,
     save_frequency: int = 10,
     output_dir: str = "training_output",
+    state_mapping_dir: Path = Path("environment/state_mapping"),
+    reward_config: str = "config/environment/thin_ice.yaml",
     verbose: bool = True,
 ) -> Tuple[OptionCritic, List[Dict]]:
     """Train OptionCritic agent for specified number of episodes
@@ -263,6 +178,8 @@ def train_agent(
         temperature: Temperature for option policy
         save_frequency: Save agent every N episodes
         output_dir: Directory to save outputs
+        state_mapping_dir: Directory to where the state_to_idx dict is stored for a level
+        reward_config: Directory to where the env config is stored
         verbose: Whether to print detailed logs
         
     Returns:
@@ -283,7 +200,12 @@ def train_agent(
     
     # Create environment
     logging.info("Creating environment...")
-    env = ThinIceEnv(level=level, render_mode=None, headless=True)
+    with open(reward_config, 'r') as f:
+        config = yaml.safe_load(f)
+    env = ThinIceEnv(level=level, render_mode=None, headless=True, reward_config=config["rewards"])
+    
+    # Create state manager
+    state_manager = StateManager(state_mapping_dir)
     
     # Create agent
     logging.info("Initializing OptionCritic agent...")
@@ -297,6 +219,7 @@ def train_agent(
         alpha_upsilon=alpha_upsilon,
         epsilon=epsilon,
         n_steps=n_steps,
+        state_manager=state_manager
     )
     
     # Training loop
@@ -307,7 +230,8 @@ def train_agent(
         logging.info(f"Episode {episode}/{num_episodes}")
         
         # Train one episode
-        episode_stats = train_episode(agent, env, temperature, episode)
+        episode_stats = agent.train(env, temperature, save_mapping=True)
+        episode_stats["episode"] = episode
         all_results.append(episode_stats)
         
         # Log episode statistics
@@ -325,7 +249,7 @@ def train_agent(
             save_agent(agent, save_dir, episode, level)
             save_training_results(all_results, results_dir, level)
             logging.info(f"Saved checkpoint at episode {episode}")
-    
+
     # Final save
     logging.info("Training completed. Saving final agent and results...")
     save_agent(agent, save_dir, num_episodes, level)
@@ -356,22 +280,26 @@ def main():
     parser.add_argument("--alpha_critic", type=float, default=0.5, help="Critic learning rate")
     parser.add_argument("--alpha_theta", type=float, default=0.25, help="Intra-option policy learning rate")
     parser.add_argument("--alpha_upsilon", type=float, default=0.25, help="Termination function learning rate")
-    parser.add_argument("--epsilon", type=float, default=0.9, help="Exploration parameter")
+    parser.add_argument("--epsilon", type=float, default=0.1, help="Exploration parameter")
     parser.add_argument("--n_steps", type=int, default=1000, help="Maximum steps per episode")
     parser.add_argument("--temperature", type=float, default=1.0, help="Temperature for option policy")
     
     # Training parameters
     parser.add_argument("--save_frequency", type=int, default=10, help="Save agent every N episodes")
     parser.add_argument("--output_dir", type=str, default="training_output", help="Output directory")
+    parser.add_argument("--state_mapping_dir", type=str, default="environment/state_mapping", help="Level mapping directory")
     parser.add_argument("--verbose", action="store_true", help="Print detailed logs")
     parser.add_argument("--quiet", action="store_true", help="Suppress output")
+    
+    parser.add_argument("--config", type=str, default="configs/config.yaml", help="Suppress output")
     
     args = parser.parse_args()
     
     verbose = args.verbose and not args.quiet
+    state_mapping_dir = Path(args.state_mapping_dir)
     
     # Train agent
-    agent, results = train_agent(
+    _, results = train_agent(
         level=args.level,
         num_episodes=args.num_episodes,
         n_options=args.n_options,
@@ -386,6 +314,8 @@ def main():
         temperature=args.temperature,
         save_frequency=args.save_frequency,
         output_dir=args.output_dir,
+        reward_config = args.config,
+        state_mapping_dir=state_mapping_dir,
         verbose=verbose,
     )
     

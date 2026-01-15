@@ -4,11 +4,9 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-import json
-import os
-from pathlib import Path
 
 from environment.thin_ice.thin_ice_env import ThinIceEnv
+from model.hrl.option_critic.state_manager import StateManager
 
 from typing import Optional
 from collections import defaultdict
@@ -25,13 +23,19 @@ class Option():
         """
         self.idx = idx
         
+        if n_states <= 0:
+            raise ValueError("Number of states must be positive")
+        
+        if n_actions <= 0:
+            raise ValueError("Number of actions must be positive")
+        
         self.n_states = n_states
         self.n_actions = n_actions
         
-        self.theta = torch.nn.Parameter(torch.rand(n_states, n_actions))    # Intra policy parameters
-        self.upsilon = torch.nn.Parameter(torch.rand(n_states,))            # Termination parameters
+        self.theta = torch.nn.Parameter(torch.zeros(n_states, n_actions))    # Intra policy parameters
+        self.upsilon = torch.nn.Parameter(torch.zeros(n_states,))            # Termination parameters
         
-    def pi(self, state_idx: int, temperature: float = 1.0) -> torch.Tensor:
+    def pi(self, state_idx: int, temperature: Optional[float] = 1.0) -> torch.Tensor:
         """The option policy for a particular state
 
         Args:
@@ -41,12 +45,15 @@ class Option():
         Returns:
             torch.Tensor: The probabilities of each action given a state (tensor of shape (n_actions,))
         """
+        if temperature <= 0:
+            raise ValueError("Temperature must be positive")
+        
         logits = self.theta[state_idx] / temperature
         probs = F.softmax(logits, dim = -1)
         
         return probs
     
-    def log_pi(self, state_idx: int, action: int, temperature: float = 1.0) -> torch.Tensor:
+    def log_pi(self, state_idx: int, action: int, temperature: Optional[float] = 1.0) -> torch.Tensor:
         """Computes the log probability of an action given a state
 
         Args:
@@ -57,12 +64,15 @@ class Option():
         Returns:
             torch.Tensor: The log probability of an action given a state (scalar tensor)
         """
+        if temperature <= 0:
+            raise ValueError("Temperature must be positive")
+        
         logits = self.theta[state_idx] / temperature
         log_probs = F.log_softmax(logits, dim = -1)
         
         return log_probs[action]
     
-    def choose_action(self, state_idx: int, temperature: float = 1.0) -> int:
+    def choose_action(self, state_idx: int, temperature: Optional[float] = 1.0) -> int:
         """Choose an action acoording to a multinomial distribution
 
         Args:
@@ -72,10 +82,20 @@ class Option():
         Returns:
             int: An action given as an integer (should match the action representation)
         """
+        # TODO: Consider whether an exploration parameter should be added
+        # to encourage exploration of actions and not just options
         return torch.multinomial(self.pi(state_idx, temperature), 1).item()
     
-    def beta(self, state_idx: int) -> float:
-        return F.sigmoid(self.upsilon[state_idx]).item()
+    def beta(self, state_idx: int) -> torch.Tensor:
+        """Generate termination probability of the option given a state
+
+        Args:
+            state_idx (int): The index of the state
+
+        Returns:
+            torch.Tensor: A tensor containing the probability of termination
+        """
+        return F.sigmoid(self.upsilon[state_idx])
 
 
 class OptionCritic():
@@ -87,8 +107,9 @@ class OptionCritic():
                  alpha_critic: float = 0.5,
                  alpha_theta: float = 0.25,
                  alpha_upsilon: float = 0.25,
-                 epsilon: float = 0.9,
-                 n_steps: int = 1000):
+                 epsilon: float = 0.1,
+                 n_steps: int = 1000,
+                 state_manager: Optional[StateManager] = None):
         """The class for the OptionCritic architecture
 
         Args:
@@ -99,7 +120,7 @@ class OptionCritic():
             alpha_critic (float, optional): The learning rate for the option-critic. Defaults to 0.5.
             alpha_theta (float, optional): The learning rate for the intra-policy. Defaults to 0.25.
             alpha_upsilon (float, optional): The learning rate for the termination function. Defaults to 0.25.
-            epsilon (float, optional): The exploration/exploitation trade-off paramater. Defaults to 0.9.
+            epsilon (float, optional): Defines the probability of taking a random action. Defaults to 0.9.
             n_steps (int, optional): The maximum number of steps allowed in an episode. Defaults to 1000.
         """
         
@@ -126,17 +147,9 @@ class OptionCritic():
         
         self.n_steps = n_steps
         
-        # State-to-index mapping for tabular methods
-        # Maps state tuples (hashable representation) to unique integer indices
-        self.state_to_idx_dict: dict[tuple, int] = {}
-        self.n_unique_states = 0  # Counter for unique states encountered
-        
-        # Directory for saving/loading state mappings (default: hrl_models/option_critic/state_mappings/)
-        self.state_mapping_dir = Path(__file__).parent / "state_mappings"
-        self.state_mapping_dir.mkdir(exist_ok=True)
-        self.current_level: Optional[int] = None
+        self.state_manager = state_manager
     
-    def get_Q_Omega(self, state_idx: int, option_idx: Optional[int] = None) -> torch.Tensor | float:
+    def get_Q_Omega(self, state_idx: int, option_idx: Optional[int] = None) -> torch.Tensor:
         """Getter function for retrieving the state-option values
 
         Args:
@@ -145,14 +158,14 @@ class OptionCritic():
             If not specified, it will return π(*|s). Defaults to None.
 
         Returns:
-            torch.Tensor | float: Either the Q-values for each option given a state or the Q-value for a state-option pair
+            torch.Tensor: Either the Q-values for each option given a state or the Q-value for a state-option pair
         """
         if option_idx is None:
             return self.Q_Omega_table[state_idx]
         
         return self.Q_Omega_table[state_idx, option_idx]
     
-    def get_Q_U(self, state_idx: int, option_idx: int, action_idx: Optional[int] = None) -> torch.Tensor | float:
+    def get_Q_U(self, state_idx: int, option_idx: int, action_idx: Optional[int] = None) -> torch.Tensor:
         """Getter function for retrieving state-option pairs for a specific action
 
         Args:
@@ -162,7 +175,7 @@ class OptionCritic():
             If not specified, it returns all Q-values for the state-option pair. Defaults to None.
 
         Returns:
-            torch.Tensor | float: Either all Q-values for an action in the context of a state-option pair, 
+            torch.Tensor: Either all Q-values for an action in the context of a state-option pair, 
             or one value for that specific action
         """
         if action_idx is None:
@@ -170,7 +183,7 @@ class OptionCritic():
         
         return self.Q_U_table[state_idx, option_idx, action_idx]
     
-    def set_Q_Omega(self, state_idx: int, option: Option) -> None:
+    def set_Q_Omega(self, state_idx: int, option: Option, temperature: Optional[float] = 1.0) -> None:
         """Updates the Q_Omega table according to its definition
         
         Q_Omega(s, omega) = ∑_a π_(omega, theta)(a|s) * Q_U(s, omega, a)
@@ -178,8 +191,9 @@ class OptionCritic():
         Args:
             state_idx (int): The index of the state
             option (Option): The current option
+            temperature (float, optional): The logit sensitivity
         """
-        self.Q_Omega_table[state_idx, option.idx] = torch.sum(option.pi(state_idx) * self.get_Q_U(state_idx, option.idx))
+        self.Q_Omega_table[state_idx, option.idx] = torch.sum(option.pi(state_idx, temperature).detach() * self.get_Q_U(state_idx, option.idx))
         
         return
 
@@ -227,16 +241,11 @@ class OptionCritic():
         Returns:
             tuple[list, dict[list]]: The list of pursued options and a dictionary with each option's action sequence
         """
-        # Get level from environment
-        level = getattr(env, 'level', None) or getattr(env, 'current_level', None)
-        
         # Get initial state
         state, info = env.reset()
-        # Try to get level from info if not available from env
-        if level is None and 'level' in info:
-            level = info['level']
+        level = info['level']
         
-        state_idx = self._state_to_idx(state, level=level)
+        state_idx = self._state_to_idx(state, level=level) # TODO: Test this function
         
         # Store option and action sequence
         option_sequence = []
@@ -245,6 +254,8 @@ class OptionCritic():
         # Pick an initial option
         option = self.choose_new_option(state_idx)
         option_sequence.append(option.idx)
+        
+        total_reward = 0.0
         
         # Continuous updates
         terminated = False
@@ -256,11 +267,12 @@ class OptionCritic():
                 break
             
             action = option.choose_action(state_idx, temperature)
-            action_sequence[option.idx].append(action)
+            action_sequence[str(option.idx)].append(action)
             
             new_state, reward, terminated, truncated, _ = env.step(action)
             new_state_idx = self._state_to_idx(new_state, level=level)
-            
+            total_reward += reward
+                
             # Options evaluation
             self.options_evaluation(state_idx, reward, new_state_idx, option, action, terminated)
             
@@ -277,10 +289,22 @@ class OptionCritic():
             step += 1
         
         # Save state mapping after training if requested
-        if save_mapping and level is not None:
-            self._save_state_mapping(level)
+        if save_mapping:
+            self.state_manager.save_state_mapping(level)
+            
+        episode_stats = {
+            'level': level,
+            'option_sequence': option_sequence,
+            'action_sequence': action_sequence, 
+            'total_reward': total_reward,
+            'num_options_used': len(set(option_sequence)),
+            'total_steps': step,
+            'num_options_switches': len(option_sequence) - 1,
+            'terminated': terminated,
+            'truncated': truncated,
+        }
         
-        return option_sequence, action_sequence
+        return episode_stats
     
     def options_evaluation(self, 
                           state_idx: int, 
@@ -288,7 +312,8 @@ class OptionCritic():
                           new_state_idx: int, 
                           option: Option, 
                           action: int,
-                          terminated: bool) -> None:
+                          terminated: bool,
+                          temperature: Optional[float] = 1.0) -> None:
         """Implements the option evaluation from Algorithm 1: Option-critic with tabular intra-option Q-learning
 
         Args:
@@ -298,6 +323,7 @@ class OptionCritic():
             option (Option): The current selected option
             action (int): The action that was just taken
             terminated (bool): Whether the episode has terminated
+            temperature (float, optional): The logit sensitivity
         """
         option_idx = option.idx
         
@@ -313,7 +339,7 @@ class OptionCritic():
         self.set_Q_U(state_idx, option_idx, action, updated_Q_U_value)
         
         # Update Q_Omega
-        self.set_Q_Omega(state_idx, option)
+        self.set_Q_Omega(state_idx, option, temperature)
         
         return
     
@@ -337,218 +363,95 @@ class OptionCritic():
         # Update for theta
         option.theta.grad = None # Clear old gradients
         
-        # Negative sign due to pytorch minimization
-        # Detach Q_U value since it's from the critic (not part of policy gradient)
-        q_u_value = self.get_Q_U(state_idx, option_idx, action)
-        if isinstance(q_u_value, torch.Tensor):
-            q_u_value = q_u_value.detach()
-        else:
-            q_u_value = torch.tensor(q_u_value, dtype=torch.float32)
-        
         log_pi = option.log_pi(state_idx, action, temperature)
-        loss = -log_pi * q_u_value
-        loss.backward()
+        log_pi.backward()
         
         with torch.no_grad():
-            option.theta += self.alpha_theta * option.theta.grad
+            option.theta += self.alpha_theta * option.theta.grad * self.get_Q_U(state_idx, option_idx, action)
         
         # Update for upsilon
         option.upsilon.grad = None
-        advantage = (self.get_Q_Omega(new_state_idx, option_idx) - torch.max(self.get_Q_Omega(new_state_idx))).detach()
+        advantage = self.get_Q_Omega(new_state_idx, option_idx) - torch.max(self.get_Q_Omega(new_state_idx))
         
-        # Compute beta directly from upsilon parameter to maintain gradient flow
-        # (beta() method calls .item() which detaches, so we compute it here)
-        upsilon_value = option.upsilon[new_state_idx]
-        beta_value = F.sigmoid(upsilon_value)
-        
-        loss = beta_value * advantage
-        loss.backward()
+        beta = option.beta(new_state_idx)
+        beta.backward()
         
         with torch.no_grad():
-            option.upsilon -= self.alpha_upsilon * option.upsilon.grad
+            option.upsilon -= self.alpha_upsilon * option.upsilon.grad * advantage
         
         return
     
-    def _get_state_mapping_file(self, level: int) -> Path:
-        """Get the file path for a level's state mapping
-        
-        Args:
-            level (int): The level number
-            
-        Returns:
-            Path: Path to the JSON file for this level's state mapping
-        """
-        return self.state_mapping_dir / f"level_{level}_state_mapping.json"
-    
-    def _load_state_mapping(self, level: int) -> bool:
-        """Load state-to-index mapping from file if it exists
-        
-        Args:
-            level (int): The level number to load mapping for
-            
-        Returns:
-            bool: True if mapping was loaded successfully, False otherwise
-        """
-        mapping_file = self._get_state_mapping_file(level)
-        
-        if not mapping_file.exists():
-            return False
-        
-        try:
-            with open(mapping_file, 'r') as f:
-                data = json.load(f)
-            
-            # Convert list of [state_list, index] pairs back to dictionary with tuple keys
-            # JSON doesn't support tuple keys, so we stored as list of pairs
-            state_mapping_list = data['state_to_idx_dict']
-            self.state_to_idx_dict = {tuple(k): v for k, v in state_mapping_list}
-            self.n_unique_states = data['n_unique_states']
-            
-            # Update n_states if needed to accommodate loaded states
-            if self.n_unique_states > self.n_states:
-                old_size = self.n_states
-                new_size = max(self.n_unique_states, int(self.n_states * 1.5))
-                
-                # Expand Q-tables
-                expanded_Q_Omega = torch.zeros((new_size, self.n_options))
-                expanded_Q_Omega[:old_size] = self.Q_Omega_table
-                self.Q_Omega_table = expanded_Q_Omega
-                
-                expanded_Q_U = torch.zeros((new_size, self.n_options, self.n_actions))
-                expanded_Q_U[:old_size] = self.Q_U_table
-                self.Q_U_table = expanded_Q_U
-                
-                self.n_states = new_size
-                
-                # Expand option parameters
-                for option in self.options:
-                    old_theta = option.theta.clone()
-                    old_upsilon = option.upsilon.clone()
-                    
-                    expanded_theta = torch.nn.Parameter(torch.rand(new_size, self.n_actions))
-                    expanded_theta[:old_size] = old_theta
-                    option.theta = expanded_theta
-                    
-                    expanded_upsilon = torch.nn.Parameter(torch.rand(new_size,))
-                    expanded_upsilon[:old_size] = old_upsilon
-                    option.upsilon = expanded_upsilon
-            
-            logging.info(f"Loaded state mapping for level {level}: {self.n_unique_states} unique states")
-            return True
-            
-        except Exception as e:
-            logging.warning(f"Failed to load state mapping for level {level}: {e}")
-            return False
-    
-    def _save_state_mapping(self, level: int) -> bool:
-        """Save state-to-index mapping to file
-        
-        Args:
-            level (int): The level number to save mapping for
-            
-        Returns:
-            bool: True if mapping was saved successfully, False otherwise
-        """
-        mapping_file = self._get_state_mapping_file(level)
-        
-        try:
-            # Convert tuple keys to lists for JSON serialization
-            # Store as list of [state_list, index] pairs since JSON keys must be strings
-            state_mapping_list = [[list(k), v] for k, v in self.state_to_idx_dict.items()]
-            
-            data = {
-                'state_to_idx_dict': state_mapping_list,
-                'n_unique_states': self.n_unique_states,
-                'level': level
-            }
-            
-            with open(mapping_file, 'w') as f:
-                json.dump(data, f, indent=2)
-            
-            logging.info(f"Saved state mapping for level {level}: {self.n_unique_states} unique states to {mapping_file}")
-            return True
-            
-        except Exception as e:
-            logging.error(f"Failed to save state mapping for level {level}: {e}")
-            return False
-    
-    def _state_to_idx(self, state: torch.Tensor, level: Optional[int] = None) -> int:
+    def _state_to_idx(self, state: np.ndarray, level: int) -> int:
         """Converts an observation from the environment to an index
 
         Args:
-            state (torch.Tensor): The observation from env.step() or env.reset()
+            state (np.ndarray):   The observation from env.step() or env.reset()
                                   Can be a numpy array or torch tensor representing
                                   a flattened grid of shape (grid_height * grid_width,)
-            level (Optional[int]): The level number. If provided and mapping is empty,
-                                  will attempt to load existing mapping for this level.
+            level (int):          The level number. 
 
         Returns:
             int: The index of the state. If the state has been seen before, returns
                  its existing index. Otherwise, assigns a new index and returns it.
         """
-        # Try to load state mapping if we have a level and mapping is empty
-        if level is not None and level != self.current_level:
-            self.current_level = level
-            # Only load if we don't have any states yet (fresh start)
-            if len(self.state_to_idx_dict) == 0:
-                self._load_state_mapping(level)
+        self.current_level = level
+        
+        # Only load if we don't have any states yet (fresh start)
+        if len(self.state_manager.state_to_idx_dict) == 0:
+            self.state_manager.load_state_mapping(level)
         
         # Convert state to a hashable tuple representation
-        # Handle both numpy arrays and torch tensors
-        if isinstance(state, torch.Tensor):
-            state_tuple = tuple(state.cpu().numpy().flatten().tolist())
-        elif isinstance(state, np.ndarray):
-            state_tuple = tuple(state.flatten().tolist())
-        else:
-            # Try to convert to list/tuple directly
-            state_tuple = tuple(state.flatten() if hasattr(state, 'flatten') else state)
-        
+        state_tuple = tuple(state.tolist())
+
         # Check if we've seen this state before
-        if state_tuple not in self.state_to_idx_dict:
+        if state_tuple not in self.state_manager.state_to_idx_dict:
             # Assign a new index for this unique state
-            self.state_to_idx_dict[state_tuple] = self.n_unique_states
-            self.n_unique_states += 1
+            self.state_manager.state_to_idx_dict[state_tuple] = self.state_manager.n_unique_states
+            self.state_manager.n_unique_states += 1
             
-            # Dynamically expand Q-tables if needed
-            # Note: This assumes states are encountered incrementally
-            # For very large state spaces, consider pre-allocating or using sparse representations
-            if self.n_unique_states > self.n_states:
-                # Expand Q_Omega table
-                old_size = self.Q_Omega_table.shape[0]
-                new_size = max(self.n_unique_states, int(self.n_states * 1.5))
-                expanded_Q_Omega = torch.zeros((new_size, self.n_options))
-                expanded_Q_Omega[:old_size] = self.Q_Omega_table
-                self.Q_Omega_table = expanded_Q_Omega
-                
-                # Expand Q_U table
-                expanded_Q_U = torch.zeros((new_size, self.n_options, self.n_actions))
-                expanded_Q_U[:old_size] = self.Q_U_table
-                self.Q_U_table = expanded_Q_U
-                
-                # Update n_states to reflect new capacity
-                self.n_states = new_size
-                
-                # Expand theta and upsilon for each option
-                for option in self.options:
-                    old_theta = option.theta.clone()
-                    old_upsilon = option.upsilon.clone()
-                    
-                    # Expand theta
-                    expanded_theta = torch.nn.Parameter(torch.rand(new_size, self.n_actions))
-                    expanded_theta[:old_size] = old_theta
-                    option.theta = expanded_theta
-                    
-                    # Expand upsilon
-                    expanded_upsilon = torch.nn.Parameter(torch.rand(new_size,))
-                    expanded_upsilon[:old_size] = old_upsilon
-                    option.upsilon = expanded_upsilon
+            if self.state_manager.n_unique_states > self.n_states:
+                logging.warning("The number of unique states exceed the expected amount of states")
+                self._augment_state_space()
         
-        return self.state_to_idx_dict[state_tuple]
+        return self.state_manager.state_to_idx_dict[state_tuple]
+    
+    def _augment_state_space(self):
+        # TODO: Consider the necessity of augmenting state space online
+        raise EnvironmentError(f"Number of states given: {self.n_states}. Number of unique states: {self.state_manager.n_unique_states}")
+        
+        # Dynamically expand Q-tables if needed
+        # Note: This assumes states are encountered incrementally
+        # For very large state spaces, consider pre-allocating or using sparse representations
+        
+        # # Expand Q_Omega table
+        # old_size = self.Q_Omega_table.shape[0]
+        # new_size = max(self.n_unique_states, int(self.n_states * 1.5))
+        
+        # expanded_Q_Omega = torch.zeros((new_size, self.n_options))
+        # expanded_Q_Omega[:old_size] = self.Q_Omega_table
+        # self.Q_Omega_table = expanded_Q_Omega
+        
+        # # Expand Q_U table
+        # expanded_Q_U = torch.zeros((new_size, self.n_options, self.n_actions))
+        # expanded_Q_U[:old_size] = self.Q_U_table
+        # self.Q_U_table = expanded_Q_U
+        
+        # # Update n_states to reflect new capacity
+        # self.n_states = new_size
+        
+        # # Expand theta and upsilon for each option
+        # for option in self.options:
+        #     old_theta = option.theta.clone()
+        #     old_upsilon = option.upsilon.clone()
+            
+        #     # Expand theta
+        #     expanded_theta = torch.nn.Parameter(torch.rand(new_size, self.n_actions))
+        #     expanded_theta[:old_size] = old_theta
+        #     option.theta = expanded_theta
+            
+        #     # Expand upsilon
+        #     expanded_upsilon = torch.nn.Parameter(torch.rand(new_size,))
+        #     expanded_upsilon[:old_size] = old_upsilon
+        #     option.upsilon = expanded_upsilon
 
-# TODO: Comment and annotate this file
-
-# TODO: In a new file
-# train_agent.py: Train for X episodes and save results (the agent, the options, the options and action sequences)
-# plotting.py: Make plotting of the results (options, q-values for analysis)
-# experiment_suite.py: Gather all baseline methods / HRL methods
-#       NOTE: Consider Hydra for easier config / experiment management
+        # return
