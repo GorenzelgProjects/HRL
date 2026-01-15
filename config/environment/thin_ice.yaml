@@ -6,6 +6,9 @@ env_name: thin_ice
 env_specific_settings:
   generate_water: false
 
+# State to index mapping
+state_mapping_dir: "environment/state_mapping"
+
 # Reward Function Configuration
 rewards:
   # Tile visiting rewards

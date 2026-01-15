@@ -1,17 +1,10 @@
 import gymnasium as gym
 
-def validate_environment(id: str, entry_point: type[gym.Env]) -> None:
+def validate_environment(id: str) -> None:
     """Basic environment validation"""
     print("=" * 60)
     print("Basic Environment Validation")
     print("=" * 60)
-    
-    # Register environment
-    gym.register(
-        id=id,
-        entry_point=entry_point,
-        max_episode_steps=1000,
-    )
     
     # Create environment
     try:

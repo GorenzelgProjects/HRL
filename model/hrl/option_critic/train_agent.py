@@ -143,6 +143,7 @@ def save_training_results(results: List[Dict], save_dir: Path, level: int):
 
 
 def train_agent(
+    env: ThinIceEnv,
     level: int = 1,
     num_episodes: int = 100,
     n_options: int = 4,
@@ -157,7 +158,7 @@ def train_agent(
     temperature: float = 1.0,
     save_frequency: int = 10,
     output_dir: str = "training_output",
-    state_mapping_dir: Path = Path("environment/state_mapping"),
+    state_mapping_dir: str = "environment/state_mapping",
     reward_config: str = "config/environment/thin_ice.yaml",
     verbose: bool = True,
 ) -> Tuple[OptionCritic, List[Dict]]:
@@ -198,14 +199,14 @@ def train_agent(
     logging.info(f"Starting training for level {level}")
     logging.info(f"Training parameters: {locals()}")
     
-    # Create environment
-    logging.info("Creating environment...")
-    with open(reward_config, 'r') as f:
-        config = yaml.safe_load(f)
-    env = ThinIceEnv(level=level, render_mode=None, headless=True, reward_config=config["rewards"])
+    # # Create environment
+    # logging.info("Creating environment...")
+    # with open(reward_config, 'r') as f:
+    #     config = yaml.safe_load(f)
+    # env = ThinIceEnv(level=level, render_mode=None, headless=True, reward_config=config["rewards"])
     
     # Create state manager
-    state_manager = StateManager(state_mapping_dir)
+    state_manager = StateManager(Path(state_mapping_dir))
     
     # Create agent
     logging.info("Initializing OptionCritic agent...")
@@ -296,7 +297,7 @@ def main():
     args = parser.parse_args()
     
     verbose = args.verbose and not args.quiet
-    state_mapping_dir = Path(args.state_mapping_dir)
+    state_mapping_dir = args.state_mapping_dir
     
     # Train agent
     _, results = train_agent(

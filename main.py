@@ -10,6 +10,7 @@ import gymnasium as gym
 from omegaconf import DictConfig
 
 from model.baseline.astar.astar_manager import AStarManager
+from model.hrl.option_critic.option_critic_manager import OptionCriticManager
 from model.baseline.q_learning.q_learning_manager import QLearningManager
 from model.baseline.random.random_manager import RandomManager 
 
@@ -36,7 +37,7 @@ def run(cfg: DictConfig) -> None:
     )
     
     # Run basic validation
-    validate_environment(id=env_id, entry_point=env_entrypoint)
+    validate_environment(id=env_id)
     print("\n")
 
     if cfg.experiment.render:
@@ -74,6 +75,25 @@ def run(cfg: DictConfig) -> None:
                     ))
             case "random":
                 models.append(RandomManager(model_cfg.random_episodes, partial_env, cfg.save_dir))
+            case "option_critic":
+                models.append(OptionCriticManager(
+                    model_cfg.n_states,
+                    model_cfg.n_options,
+                    model_cfg.n_actions,
+                    model_cfg.n_steps,
+                    model_cfg.n_episodes,
+                    model_cfg.epsilon,
+                    model_cfg.gamma,
+                    model_cfg.alpha_critic,
+                    model_cfg.alpha_theta,
+                    model_cfg.alpha_upsilon,
+                    model_cfg.temperature,
+                    model_cfg.save_frequency,
+                    model_cfg.verbose,
+                    model_cfg.quiet,
+                    cfg.save_dir,
+                    cfg.environment.state_mapping_dir,
+                    partial_env))
             case _:
                 raise ValueError(f"{model_name=} not recognized. Try astar/q_learning/random")
 
