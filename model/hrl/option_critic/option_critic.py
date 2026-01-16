@@ -55,8 +55,9 @@ class Option:
         if temperature <= 0:
             raise ValueError("Temperature must be positive")
 
-        logits = self.theta[state_idx] / temperature
-        probs = F.softmax(logits, dim=-1)
+        with torch.no_grad():
+            logits = self.theta[state_idx] / temperature
+            probs = F.softmax(logits, dim=-1)
 
         return probs
 
@@ -215,7 +216,7 @@ class OptionCritic:
             temperature (float, optional): The logit sensitivity
         """
         self.Q_Omega_table[state_idx, option.idx] = torch.sum(
-            option.pi(state_idx, temperature).detach()
+            option.pi(state_idx, temperature)
             * self.get_Q_U(state_idx, option.idx)
         )
 
@@ -306,6 +307,11 @@ class OptionCritic:
             self.options_evaluation(
                 state_idx, reward, new_state_idx, option, action, terminated
             )
+            
+            logging.debug(f"state index: {state_idx}")
+            logging.debug(f"action: {action}")
+            logging.debug(f"reward: {reward}")
+            logging.debug(f"Updated Q_U value: {self.get_Q_U(state_idx, option.idx)}")
 
             # Options improvement
             self.options_improvement(
@@ -313,7 +319,7 @@ class OptionCritic:
             )
 
             # Pick new option if the previous terminates
-            termination_prob = option.beta(new_state_idx)
+            termination_prob = option.beta(new_state_idx).detach()
             if torch.rand(1).item() < termination_prob:
                 option = self.choose_new_option(new_state_idx)
                 option_sequence.append(option.idx)

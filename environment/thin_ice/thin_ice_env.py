@@ -83,6 +83,7 @@ class ThinIceEnv(gym.Env):
             reward_config = {}
         self.reward_config = {
             "new_tile_reward": reward_config.get("new_tile_reward", 0.1),
+            "step_reward": reward_config.get("step_reward", -0.1),
             "level_completion_reward": reward_config.get("level_completion_reward", 5.0),
             "perfect_completion_bonus": reward_config.get("perfect_completion_bonus", 10.0),
             "key_collection_reward": reward_config.get("key_collection_reward", 1.0),
@@ -567,6 +568,9 @@ class ThinIceEnv(gym.Env):
         truncated = False
         
         if moved:
+            # Penalty for stepping
+            reward += self.reward_config["step_reward"]
+            
             # Track visited tiles
             new_pos = (self.player.x, self.player.y)
             if new_pos not in self.visited_tiles:

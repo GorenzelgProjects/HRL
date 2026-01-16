@@ -130,19 +130,19 @@ def run(cfg: DictConfig) -> None:
     if len(levels) <= 0 or not isinstance(levels[0], int):
         raise ValueError(levels)
 
-    print("Starting training")
+    logging.info("Starting training")
     if cfg.experiment.run_training:
         for model in models:
             model.train(levels, cfg.experiment.render, delay)
-    print("Training finished")
+    logging.info("Training finished")
 
-    print("Starting testing")
+    logging.info("Starting testing")
     if cfg.experiment.run_testing:
         for model in models:
             model.test(levels, cfg.experiment.render, delay)
-    print("Testing finished")
+    logging.info("Testing finished")
 
-    print("\nAll runs completed!")
+    logging.info("\nAll runs completed!")
 
 
 if __name__ == "__main__":

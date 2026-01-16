@@ -206,15 +206,9 @@ def train_agent(
     save_dir = output_path / "agents"
     results_dir = output_path / "results"
 
-    # Setup logging
-    logging.info(f"Starting training for level {level}")
-    logging.info(f"Training parameters: {locals()}")
-
     # Create state manager
     state_manager = StateManager(Path(state_mapping_dir))
 
-    # Create agent
-    logging.info("Initializing OptionCritic agent...")
     agent = OptionCritic(
         n_states=n_states,
         n_actions=n_actions,
@@ -229,7 +223,6 @@ def train_agent(
     )
 
     # Training loop
-    logging.info(f"Starting training for {num_episodes} episodes...")
     all_results = []
 
     for episode in range(1, num_episodes + 1):
