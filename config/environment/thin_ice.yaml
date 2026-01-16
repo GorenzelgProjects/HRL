@@ -21,7 +21,7 @@ rewards:
   # Item collection rewards
   key_collection_reward: 1.0  # Reward for collecting key
   keyhole_unlock_reward: 1.0  # Reward for unlocking keyhole
-  treasure_collection_reward: 2.0  # Reward for collecting treasure
+  treasure_collection_reward: 0  # Reward for collecting treasure
   
   # Penalties
   invalid_move_penalty: -0.01  # Penalty for invalid moves

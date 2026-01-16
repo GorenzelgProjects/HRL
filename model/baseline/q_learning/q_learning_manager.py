@@ -5,7 +5,7 @@ import gymnasium as gym
 
 from model.base_manager import BaseModelManager
 from model.baseline.q_learning.q_learning_agent import train_q_learning
-from model.utils.save_results import save_results
+from model.utils.save_results import save_results, save_q_table, save_training_results
 
 
 class QLearningManager(BaseModelManager):
@@ -33,23 +33,36 @@ class QLearningManager(BaseModelManager):
     def train(self, levels: list[int], render: bool = False, delay: float = 0.05) -> None:
         level_results = []
         result_dir = os.path.join(self.save_dir, "level_results")
+        results_dir = os.path.join(self.save_dir, "results")  # For training results with action sequences
+        
         for level_num in levels:
             print(f"\n{'='*60}")
             print(f"Level {level_num}")
             print(f"{'='*60}")
             level_env = self.partial_env(level_num)
             
-            result = train_q_learning(level_env,
-                                      self.qlearning_episodes,
-                                      self.learning_rate,
-                                      self.discount,
-                                      self.epsilon,
-                                      render,
-                                      delay)
+            result, q_table = train_q_learning(level_env,
+                                              self.qlearning_episodes,
+                                              self.learning_rate,
+                                              self.discount,
+                                              self.epsilon,
+                                              render,
+                                              delay)
             
-            #level_results.append(result)
-            # TODO: Save q-table and results in a better way, saving results for each episode is overkill
+            # Save results (episode summaries)
             save_results(result, filename=f"lvl-{level_num}_result.json", results_dir=self.save_dir)
+            
+            # Save Q-table and policy
+            save_q_table(q_table, 
+                        filename=f"lvl-{level_num}_policy.json", 
+                        results_dir=self.save_dir,
+                        num_actions=level_env.action_space.n)
+            
+            # Save training results with action sequences (option-critic format)
+            save_training_results(result,
+                                 filename=f"training_results_level_{level_num}.json",
+                                 results_dir=results_dir,
+                                 level=level_num)
             
     def test(self, levels: list[int], render: bool, delay: float) -> None:
         # TODO: Implement or save the plans from q-tables in train() or something 

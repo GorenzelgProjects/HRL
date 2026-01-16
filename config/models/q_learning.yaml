@@ -6,5 +6,5 @@ q_learning:
   epsilon_min: 0.01  # Minimum epsilon
 
 
-
-  qlearning_episodes: 50  # Number of Q-learning episodes
+  qlearning_episodes: 40  # Number of Q-learning episodes
+  render: false  # Set to true to visualize training, false for faster training
