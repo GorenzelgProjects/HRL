@@ -168,6 +168,7 @@ def train_agent(
     alpha_theta: float = 0.25,
     alpha_upsilon: float = 0.25,
     epsilon: float = 0.9,
+    epsilon_decay: float = 0.995,
     n_steps: int = 1000,
     temperature: float = 1.0,
     save_frequency: int = 10,
@@ -232,6 +233,10 @@ def train_agent(
         episode_stats = agent.train(env, temperature, save_mapping=True)
         episode_stats["episode"] = episode
         all_results.append(episode_stats)
+        
+        # Decay the exploration parameter
+        agent.epsilon *= epsilon_decay
+        logging.debug(f"Decayed epsilon to {agent.epsilon}")
 
         # Log episode statistics
         if verbose:

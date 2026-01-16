@@ -267,7 +267,18 @@ class OptionCritic:
             save_mapping (bool, optional): Whether to save the state mapping after training. Defaults to True.
 
         Returns:
-            tuple[list, dict[list]]: The list of pursued options and a dictionary with each option's action sequence
+            dict: A dictionary containing the summary of the training of an episode. Including:
+                - "level": the level it was trained on,
+                - "option_sequence": a list of all options,
+                - "action_sequence": A nested dictionary where the first key is the option index, and the second key is the
+                number in the option sequence e.g {"0": {"3": [1, 2]}} mean option one had an action sequence at the third option switch that
+                executed acion 1 and 2,
+                - "total_reward": The total reward,
+                - "num_options_used": The number of options used,
+                - "total_steps": Total amount of steps used prior to termination,
+                - "num_options_switches": The number of times the agent switched option strategy,
+                - "terminated": Whether the episode terminated with a win,
+                - "truncated": Whether an error happened, terminating the game preemptively,
         """
         # Get initial state
         state, info = env.reset()
@@ -277,7 +288,7 @@ class OptionCritic:
 
         # Store option and action sequence
         option_sequence = []
-        action_sequence = defaultdict(list)
+        action_sequence = defaultdict(lambda: defaultdict(list))
 
         # Pick an initial option
         option = self.choose_new_option(state_idx)
@@ -289,6 +300,7 @@ class OptionCritic:
         terminated = False
         truncated = False
         step = 0
+        option_switches = 0
         while not (terminated or truncated):
             if step >= self.n_steps:
                 logging.info(
@@ -297,7 +309,7 @@ class OptionCritic:
                 break
 
             action = option.choose_action(state_idx, temperature)
-            action_sequence[str(option.idx)].append(action)
+            action_sequence[str(option.idx)][option_switches].append(action)
 
             new_state, reward, terminated, truncated, _ = env.step(action)
             new_state_idx = self._state_to_idx(new_state, level=level)
@@ -323,6 +335,7 @@ class OptionCritic:
             if torch.rand(1).item() < termination_prob:
                 option = self.choose_new_option(new_state_idx)
                 option_sequence.append(option.idx)
+                option_switches += 1
 
             state_idx = new_state_idx
             step += 1
@@ -338,7 +351,7 @@ class OptionCritic:
             "total_reward": total_reward,
             "num_options_used": len(set(option_sequence)),
             "total_steps": step,
-            "num_options_switches": len(option_sequence) - 1,
+            "num_options_switches": option_switches,
             "terminated": terminated,
             "truncated": truncated,
         }

@@ -17,6 +17,7 @@ class OptionCriticManager(BaseModelManager):
         n_steps: int,
         n_episodes: int,
         epsilon: float,
+        epsilon_decay: float,
         gamma: float,
         alpha_critic: float,
         alpha_theta: float,
@@ -38,6 +39,7 @@ class OptionCriticManager(BaseModelManager):
         self.n_episodes = n_episodes
 
         self.epsilon = epsilon
+        self.epsilon_decay = epsilon_decay
         self.gamma = gamma
         self.alpha_critic = alpha_critic
         self.alpha_theta = alpha_theta
@@ -72,6 +74,7 @@ class OptionCriticManager(BaseModelManager):
                 alpha_theta=self.alpha_theta,
                 alpha_upsilon=self.alpha_upsilon,
                 epsilon=self.epsilon,
+                epsilon_decay = self.epsilon_decay,
                 n_steps=self.n_steps,
                 temperature=self.temperature,
                 save_frequency=self.save_frequency,
