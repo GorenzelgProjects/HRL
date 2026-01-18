@@ -5,6 +5,7 @@ env_name: thin_ice
 
 env_specific_settings:
   generate_water: false
+  use_coord_state_representation: true
 
 # State to index mapping
 state_mapping_dir: "environment/state_mapping"

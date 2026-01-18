@@ -6,7 +6,7 @@ from loguru import logger as logging
 
 
 class StateManager:
-    def __init__(self, state_mapping_dir: Path):
+    def __init__(self, state_mapping_dir: Path, coord_representation: bool = False):
         # State-to-index mapping for tabular methods
         # Maps state tuples (hashable representation) to unique integer indices
         self.state_to_idx_dict: dict[tuple, int] = {}
@@ -16,6 +16,7 @@ class StateManager:
         self.state_mapping_dir = state_mapping_dir
         self.state_mapping_dir.mkdir(exist_ok=True)
         self.current_level: Optional[int] = None
+        self.coord_representation = coord_representation
 
     def get_state_mapping_file(self, level: int) -> Path:
         """Get the file path for a level's state mapping
@@ -26,7 +27,10 @@ class StateManager:
         Returns:
             Path: Path to the JSON file for this level's state mapping
         """
-        return self.state_mapping_dir / f"level_{level}_state_mapping.json"
+        if self.coord_representation:
+            self.state_mapping_dir / f"level_{level}_coord_state_mapping.json"
+        else:
+            return self.state_mapping_dir / f"level_{level}_state_mapping.json"
 
     def load_state_mapping(self, level: int) -> bool:
         """Load state-to-index mapping from file if it exists
