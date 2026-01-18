@@ -129,7 +129,7 @@ def run(cfg: DictConfig) -> None:
 
     # Find out which levels to run
     if cfg.experiment.levels == "all":
-        levels = list(range(1, 20))  # TODO: Hardcoded
+        levels = cfg.environment.level_list
     else:
         levels = list(cfg.experiment.levels)
 

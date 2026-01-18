@@ -232,7 +232,14 @@ def train_agent(
         logging.info(f"Episode {episode}/{num_episodes}")
 
         # Train one episode
-        episode_stats = agent.train(env, temperature, save_mapping=True, render=render if episode == num_episodes - 1 else False, delay=delay)
+        episode_stats = agent.train(
+            env,
+            temperature,
+            save_mapping=True,
+            render=render if episode == num_episodes - 1 else False,
+            delay=delay
+        )
+        
         episode_stats["episode"] = episode
         all_results.append(episode_stats)
         

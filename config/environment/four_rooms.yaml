@@ -3,8 +3,7 @@ defaults:
 
 env_name: four_rooms
 
-# State to index mapping
-state_mapping_dir: "environment/state_mapping"
+level_list: [1]
 
 env_specific_settings:
   settings: None
