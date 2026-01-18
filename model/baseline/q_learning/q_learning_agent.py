@@ -46,8 +46,10 @@ def train_q_learning(
                 get_q_value(next_state_key, a) for a in range(env.action_space.n)
             ]
             target_q = reward + discount * max(next_q_values)
+        
+        #q_table[state_key][action] = current_q + learning_rate * (target_q - current_q)
+        q_table[state_key][action] += learning_rate * (target_q - current_q)
 
-        q_table[state_key][action] = current_q + learning_rate * (target_q - current_q)
 
     episode_rewards = []
     episode_lengths = []
@@ -61,7 +63,10 @@ def train_q_learning(
         terminated = False
         truncated = False
         episode_start_time = time.time()
-
+        
+        # Track action sequence for this episode
+        action_sequence = []
+        
         if render and episode == num_episodes - 1:  # Render only last episode
             env.render()
             time.sleep(delay)
@@ -75,7 +80,10 @@ def train_q_learning(
                     get_q_value(state_key, a) for a in range(env.action_space.n)
                 ]
                 action = np.argmax(q_values)
-
+            
+            # Track the action
+            action_sequence.append(int(action))
+            
             # Take action
             next_obs, reward, terminated, truncated, info = env.step(action)
             next_state_key = get_state_key(next_obs)
@@ -101,24 +109,27 @@ def train_q_learning(
         episode_time = time.time() - episode_start_time
         episode_rewards.append(total_reward)
         episode_lengths.append(steps)
-
-        episode_result = {
-            "episode": episode + 1,
-            "steps": steps,
-            "total_reward": float(total_reward),
-            "terminated": terminated,
-            "truncated": truncated,
-            "visited_tiles": info["visited_tiles"],
-            "total_tiles": info["total_tiles"],
-            "complete_tiles": info["complete_tiles"],
-            "final_distance": info["distance"],
-            "has_key": info["has_key"],
-            "level": info["level"],
-            "time_seconds": episode_time,
-            "q_table_size": len(q_table),
-        }
-        results.append(episode_result)
-
+        
+        # Only save results every 10 episodes (or on the last episode)
+        if (episode + 1) % 10 == 0 or episode == num_episodes - 1:
+            episode_result = {
+                "episode": episode + 1,
+                "level": info['level'],
+                "action_sequence": action_sequence,  # Add action sequence
+                "steps": steps,
+                "total_reward": float(total_reward),
+                "terminated": terminated,
+                "truncated": truncated,
+                "visited_tiles": info['visited_tiles'],
+                "total_tiles": info['total_tiles'],
+                "complete_tiles": info['complete_tiles'],
+                "final_distance": info['distance'],
+                "has_key": info['has_key'],
+                "time_seconds": episode_time,
+                "q_table_size": len(q_table)
+            }
+            results.append(episode_result)
+        
         if (episode + 1) % 10 == 0:
             avg_reward = np.mean(episode_rewards[-10:])
             avg_length = np.mean(episode_lengths[-10:])
@@ -132,5 +143,5 @@ def train_q_learning(
     print(f"Average reward over last 10 episodes: {np.mean(episode_rewards[-10:]):.2f}")
     print(f"Average episode length: {np.mean(episode_lengths):.1f}")
     print("=" * 60)
-
-    return results
+    
+    return results, q_table

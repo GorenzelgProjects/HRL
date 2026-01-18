@@ -288,8 +288,9 @@ class OptionCritic:
 
         # Store option and action sequence
         option_sequence = []
-        action_sequence = defaultdict(lambda: defaultdict(list))
-
+        action_sequence = defaultdict(list)
+        flat_action_sequence = []  # Flat list for easier replay
+        
         # Pick an initial option
         option = self.choose_new_option(state_idx)
         option_sequence.append(option.idx)
@@ -309,8 +310,9 @@ class OptionCritic:
                 break
 
             action = option.choose_action(state_idx, temperature)
-            action_sequence[str(option.idx)][option_switches].append(action)
-
+            action_sequence[str(option.idx)].append(action)
+            flat_action_sequence.append(action)  # Also save in flat format for replay
+            
             new_state, reward, terminated, truncated, _ = env.step(action)
             new_state_idx = self._state_to_idx(new_state, level=level)
             total_reward += reward
@@ -345,15 +347,16 @@ class OptionCritic:
             self.state_manager.save_state_mapping(level)
 
         episode_stats = {
-            "level": level,
-            "option_sequence": option_sequence,
-            "action_sequence": action_sequence,
-            "total_reward": total_reward,
-            "num_options_used": len(set(option_sequence)),
-            "total_steps": step,
-            "num_options_switches": option_switches,
-            "terminated": terminated,
-            "truncated": truncated,
+            'level': level,
+            'option_sequence': option_sequence,
+            'action_sequence': action_sequence,  # Keep for backward compatibility
+            'flat_action_sequence': flat_action_sequence,  # Add flat sequence for easier replay
+            'total_reward': total_reward,
+            'num_options_used': len(set(option_sequence)),
+            'total_steps': step,
+            'num_options_switches': len(option_sequence) - 1,
+            'terminated': terminated,
+            'truncated': truncated,
         }
 
         return episode_stats

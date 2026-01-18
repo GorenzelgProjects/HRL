@@ -20,9 +20,9 @@ rewards:
   perfect_completion_bonus: 0 # 10.0  # Bonus if all tiles visited before exit
   
   # Item collection rewards
-  key_collection_reward: 0 # 1.0  # Reward for collecting key
-  keyhole_unlock_reward: 0 # 1.0  # Reward for unlocking keyhole
-  treasure_collection_reward: 0 # 2.0  # Reward for collecting treasure
+  key_collection_reward: 1.0  # Reward for collecting key
+  keyhole_unlock_reward: 1.0  # Reward for unlocking keyhole
+  treasure_collection_reward: 0  # Reward for collecting treasure
   
   # Penalties
   invalid_move_penalty: 0 # -0.1  # Penalty for invalid moves
