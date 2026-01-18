@@ -1,6 +1,6 @@
 option_critic: 
-  n_states: 100 # TODO: Should be precomputed
-  n_options: 2
+  n_states: 104 # TODO: Should be precomputed
+  n_options: 4
   n_actions: 4
 
   n_steps: 300

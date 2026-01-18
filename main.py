@@ -38,6 +38,10 @@ def run(cfg: DictConfig) -> None:
 
             env_id = "ThinIce-v0"
             env_entrypoint = ThinIceEnv
+        case "four_rooms":
+            from environment.four_rooms.four_rooms_env import Fourrooms
+            env_id = "FourRooms"
+            env_entrypoint = Fourrooms
         case _:
             raise ValueError(f"Unknown environment name: {cfg.environment.name}")
 
