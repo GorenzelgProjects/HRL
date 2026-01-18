@@ -7,14 +7,15 @@ and saves the trained agent, options, and training results.
 
 import argparse
 import json
-import logging
 import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Tuple
+
 import numpy as np
 import torch
 import yaml
+from loguru import logger as logging
 
 # Add project root to Python path
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -26,24 +27,9 @@ from model.hrl.option_critic.option_critic import OptionCritic
 from model.hrl.option_critic.state_manager import StateManager
 
 
-def setup_logging(log_dir: Path, verbose: bool = True):
-    """Setup logging configuration"""
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / f"training_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler() if verbose else logging.NullHandler()
-        ]
-    )
-    return log_file
-
 def save_agent(agent: OptionCritic, save_dir: Path, episode: int, level: int):
     """Save the trained agent to disk
-    
+
     Args:
         agent: The OptionCritic agent to save
         save_dir: Directory to save the agent
@@ -51,94 +37,122 @@ def save_agent(agent: OptionCritic, save_dir: Path, episode: int, level: int):
         level: Current level number
     """
     save_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Create a dictionary with all agent components
     agent_state = {
-        'episode': episode,
-        'level': level,
-        'n_states': agent.n_states,
-        'n_actions': agent.n_actions,
-        'n_options': agent.n_options,
-        'gamma': agent.gamma,
-        'alpha_critic': agent.alpha_critic,
-        'alpha_theta': agent.alpha_theta,
-        'alpha_upsilon': agent.alpha_upsilon,
-        'epsilon': agent.epsilon,
-        'n_steps': agent.n_steps,
-        'n_unique_states': agent.state_manager.n_unique_states,
-        'Q_Omega_table': agent.Q_Omega_table.detach().cpu().numpy().tolist(),
-        'Q_U_table': agent.Q_U_table.detach().cpu().numpy().tolist(),
+        "episode": episode,
+        "level": level,
+        "n_states": agent.n_states,
+        "n_actions": agent.n_actions,
+        "n_options": agent.n_options,
+        "gamma": agent.gamma,
+        "alpha_critic": agent.alpha_critic,
+        "alpha_theta": agent.alpha_theta,
+        "alpha_upsilon": agent.alpha_upsilon,
+        "epsilon": agent.epsilon,
+        "n_steps": agent.n_steps,
+        "n_unique_states": agent.state_manager.n_unique_states,
+        "Q_Omega_table": agent.Q_Omega_table.detach().cpu().numpy().tolist(),
+        "Q_U_table": agent.Q_U_table.detach().cpu().numpy().tolist(),
     }
-    
+
     # Save options (theta and upsilon for each option)
     options_data = []
     for option in agent.options:
-        options_data.append({
-            'idx': option.idx,
-            'theta': option.theta.detach().cpu().numpy().tolist(),
-            'upsilon': option.upsilon.detach().cpu().numpy().tolist(),
-        })
-    agent_state['options'] = options_data
-    
+        options_data.append(
+            {
+                "idx": option.idx,
+                "theta": option.theta.detach().cpu().numpy().tolist(),
+                "upsilon": option.upsilon.detach().cpu().numpy().tolist(),
+            }
+        )
+    agent_state["options"] = options_data
+
     # Save to JSON
     agent_file = save_dir / f"agent_episode_{episode}_level_{level}.json"
-    with open(agent_file, 'w') as f:
+    with open(agent_file, "w") as f:
         json.dump(agent_state, f, indent=2)
-    
+
     # Also save as PyTorch state dict for easier loading
     torch_file = save_dir / f"agent_episode_{episode}_level_{level}.pt"
-    torch.save({
-        'Q_Omega_table': agent.Q_Omega_table,
-        'Q_U_table': agent.Q_U_table,
-        'options': {opt.idx: {'theta': opt.theta, 'upsilon': opt.upsilon} for opt in agent.options},
-        'config': {
-            'n_states': agent.n_states,
-            'n_actions': agent.n_actions,
-            'n_options': agent.n_options,
-            'gamma': agent.gamma,
-            'alpha_critic': agent.alpha_critic,
-            'alpha_theta': agent.alpha_theta,
-            'alpha_upsilon': agent.alpha_upsilon,
-            'epsilon': agent.epsilon,
-            'n_steps': agent.n_steps,
-        }
-    }, torch_file)
-    
+    torch.save(
+        {
+            "Q_Omega_table": agent.Q_Omega_table,
+            "Q_U_table": agent.Q_U_table,
+            "options": {
+                opt.idx: {"theta": opt.theta, "upsilon": opt.upsilon}
+                for opt in agent.options
+            },
+            "config": {
+                "n_states": agent.n_states,
+                "n_actions": agent.n_actions,
+                "n_options": agent.n_options,
+                "gamma": agent.gamma,
+                "alpha_critic": agent.alpha_critic,
+                "alpha_theta": agent.alpha_theta,
+                "alpha_upsilon": agent.alpha_upsilon,
+                "epsilon": agent.epsilon,
+                "n_steps": agent.n_steps,
+            },
+        },
+        torch_file,
+    )
+
     logging.info(f"Saved agent to {agent_file} and {torch_file}")
 
 
 def save_training_results(results: List[Dict], save_dir: Path, level: int):
     """Save training results (option and action sequences) to file
-    
+
     Args:
         results: List of episode statistics dictionaries
         save_dir: Directory to save results
         level: Level number
     """
     save_dir.mkdir(parents=True, exist_ok=True)
-    
+
     results_file = save_dir / f"training_results_level_{level}.json"
-    
+
     training_data = {
-        'level': level,
-        'timestamp': datetime.now().isoformat(),
-        'num_episodes': len(results),
-        'episodes': results,
-        'summary': {
-            'avg_steps_per_episode': float(np.mean([r['total_steps'] for r in results])) if results else 0,
-            'avg_reward_per_episode': float(np.mean([r['total_reward'] for r in results])) if results else 0,
-            'max_reward': float(np.max([r['total_reward'] for r in results])) if results else 0,
-            'min_reward': float(np.min([r['total_reward'] for r in results])) if results else 0,
-            'avg_options_per_episode': float(np.mean([r['num_options_used'] for r in results])) if results else 0,
-            'avg_option_switches': float(np.mean([r['num_options_switches'] for r in results])) if results else 0,
-            'completion_rate': float(np.mean([1 if r['terminated'] else 0 for r in results])) if results else 0,
-            'total_episodes': len(results),
-        }
+        "level": level,
+        "timestamp": datetime.now().isoformat(),
+        "num_episodes": len(results),
+        "episodes": results,
+        "summary": {
+            "avg_steps_per_episode": (
+                float(np.mean([r["total_steps"] for r in results])) if results else 0
+            ),
+            "avg_reward_per_episode": (
+                float(np.mean([r["total_reward"] for r in results])) if results else 0
+            ),
+            "max_reward": (
+                float(np.max([r["total_reward"] for r in results])) if results else 0
+            ),
+            "min_reward": (
+                float(np.min([r["total_reward"] for r in results])) if results else 0
+            ),
+            "avg_options_per_episode": (
+                float(np.mean([r["num_options_used"] for r in results]))
+                if results
+                else 0
+            ),
+            "avg_option_switches": (
+                float(np.mean([r["num_options_switches"] for r in results]))
+                if results
+                else 0
+            ),
+            "completion_rate": (
+                float(np.mean([1 if r["terminated"] else 0 for r in results]))
+                if results
+                else 0
+            ),
+            "total_episodes": len(results),
+        },
     }
-    
-    with open(results_file, 'w') as f:
+
+    with open(results_file, "w") as f:
         json.dump(training_data, f, indent=2)
-    
+
     logging.info(f"Saved training results to {results_file}")
 
 
@@ -154,6 +168,7 @@ def train_agent(
     alpha_theta: float = 0.25,
     alpha_upsilon: float = 0.25,
     epsilon: float = 0.9,
+    epsilon_decay: float = 0.995,
     n_steps: int = 1000,
     temperature: float = 1.0,
     save_frequency: int = 10,
@@ -162,7 +177,7 @@ def train_agent(
     verbose: bool = True,
 ) -> Tuple[OptionCritic, List[Dict]]:
     """Train OptionCritic agent for specified number of episodes
-    
+
     Args:
         level: Level number to train on (1-19)
         num_episodes: Number of training episodes
@@ -181,28 +196,20 @@ def train_agent(
         state_mapping_dir: Directory to where the state_to_idx dict is stored for a level
         reward_config: Directory to where the env config is stored
         verbose: Whether to print detailed logs
-        
+
     Returns:
         Tuple of (trained agent, list of episode results)
     """
     # Setup directories
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     save_dir = output_path / "agents"
     results_dir = output_path / "results"
-    log_dir = output_path / "logs"
-    
-    # Setup logging
-    log_file = setup_logging(log_dir, verbose)
-    logging.info(f"Starting training for level {level}")
-    logging.info(f"Training parameters: {locals()}")
-    
+
     # Create state manager
     state_manager = StateManager(Path(state_mapping_dir))
-    
-    # Create agent
-    logging.info("Initializing OptionCritic agent...")
+
     agent = OptionCritic(
         n_states=n_states,
         n_actions=n_actions,
@@ -213,21 +220,24 @@ def train_agent(
         alpha_upsilon=alpha_upsilon,
         epsilon=epsilon,
         n_steps=n_steps,
-        state_manager=state_manager
+        state_manager=state_manager,
     )
-    
+
     # Training loop
-    logging.info(f"Starting training for {num_episodes} episodes...")
     all_results = []
-    
+
     for episode in range(1, num_episodes + 1):
         logging.info(f"Episode {episode}/{num_episodes}")
-        
+
         # Train one episode
         episode_stats = agent.train(env, temperature, save_mapping=True)
         episode_stats["episode"] = episode
         all_results.append(episode_stats)
         
+        # Decay the exploration parameter
+        agent.epsilon *= epsilon_decay
+        logging.debug(f"Decayed epsilon to {agent.epsilon}")
+
         # Log episode statistics
         if verbose:
             logging.info(
@@ -237,7 +247,7 @@ def train_agent(
                 f"Option switches={episode_stats['num_options_switches']}, "
                 f"Terminated={episode_stats['terminated']}"
             )
-        
+
         # Save agent periodically
         if episode % save_frequency == 0 or episode == num_episodes:
             save_agent(agent, save_dir, episode, level)
@@ -248,11 +258,10 @@ def train_agent(
     logging.info("Training completed. Saving final agent and results...")
     save_agent(agent, save_dir, num_episodes, level)
     save_training_results(all_results, results_dir, level)
-    
+
     # Close environment
     env.close()
-    
+
     logging.info(f"Training complete! Results saved to {output_path}")
-    logging.info(f"Log file: {log_file}")
-    
+
     return agent, all_results

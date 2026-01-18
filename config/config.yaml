@@ -22,8 +22,6 @@ experiment:
   render: true
   levels: ???
 
-
-
 hydra:
   run:
     dir: ${save_dir}

@@ -1,7 +1,7 @@
 q_learning:
   learning_rate: 0.1
-  discount: 0.95
-  epsilon: 0.2  # Exploration rate
+  discount: 0.99
+  epsilon: 1  # Exploration rate
   epsilon_decay: 0.995  # Epsilon decay per episode
   epsilon_min: 0.01  # Minimum epsilon
 

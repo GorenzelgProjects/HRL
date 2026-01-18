@@ -57,9 +57,9 @@ class Player(pg.sprite.Sprite):
             
     def checkAndMove(self, dx=0, dy=0):
         ''' This method combines multiple other methods for better readability in the main program '''
-                
+        
         # Only start checking when the moving block is active, move the moving block when the player moves towards it
-        if self.game.currentLevel > MOVINGBLOCKLEVEL and self.nearTile(self.game.movingBlock) != 0:
+        if self.game.currentLevel > MOVINGBLOCKLEVEL and self.game.movingBlock is not None and self.nearTile(self.game.movingBlock) != 0:
             locationOfPlayer = self.nearTile(self.game.movingBlock)
             self.game.blockIsMoving = True
             
