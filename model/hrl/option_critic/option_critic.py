@@ -1,6 +1,7 @@
 # Inspired by https://github.com/alversafa/option-critic-arch/blob/master/utils.py
 # and https://github.com/theophilegervet/options-hierarchical-rl/blob/master/implementations/option_critic.ipynb
 
+import time
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -257,7 +258,7 @@ class OptionCritic:
             return self.options[best_option_id]
 
     def train(
-        self, env: ThinIceEnv, temperature: float, save_mapping: bool = True
+        self, env: ThinIceEnv, temperature: float, save_mapping: bool = True, render: bool = False, delay: float = 0.02
     ) -> tuple[list, dict[list]]:
         """Train the Optic-Critic for a maximum of n_steps
 
@@ -341,6 +342,10 @@ class OptionCritic:
 
             state_idx = new_state_idx
             step += 1
+            
+            if render:  
+                env.render()
+                time.sleep(delay)
 
         # Save state mapping after training if requested
         if save_mapping:

@@ -7,6 +7,7 @@ import gymnasium as gym
 from gymnasium import spaces
 from gymnasium.utils import seeding
 import numpy as np
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -103,11 +104,32 @@ wwwwwwwwwwwww
 
     def render(self, show_goal=True):
         current_grid = np.array(self.occupancy)
+        self.currentcell
         current_grid[self.currentcell[0], self.currentcell[1]] = -1
         if show_goal:
             goal_cell = self.tocell[self.goal]
-            current_grid[goal_cell[0], goal_cell[1]] = -1
-        return current_grid
+            current_grid[goal_cell[0], goal_cell[1]] = -2
+
+        if self.render_mode == "human":
+            if not hasattr(self, "_fig"):
+                plt.ion()
+                self._fig, self._ax = plt.subplots()
+                self._img = self._ax.imshow(
+                    current_grid,
+                    cmap="viridis",
+                    vmin=-2,
+                    vmax=np.max(self.occupancy),
+                )
+                self._ax.set_title("Grid Environment")
+                self._ax.set_xticks([])
+                self._ax.set_yticks([])
+            else:
+                self._img.set_data(current_grid)
+
+            plt.pause(0.1)
+            return None
+        else:
+            return current_grid
 
     def step(self, action):
         """

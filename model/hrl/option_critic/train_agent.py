@@ -5,7 +5,6 @@ This script trains an OptionCritic agent for a specified number of episodes
 and saves the trained agent, options, and training results.
 """
 
-import argparse
 import json
 import sys
 from pathlib import Path
@@ -176,6 +175,8 @@ def train_agent(
     output_dir: str = "training_output",
     state_mapping_dir: str = "environment/state_mapping",
     verbose: bool = True,
+    render: bool = False,
+    delay: bool = 0.05,
 ) -> Tuple[OptionCritic, List[Dict]]:
     """Train OptionCritic agent for specified number of episodes
 
@@ -231,7 +232,7 @@ def train_agent(
         logging.info(f"Episode {episode}/{num_episodes}")
 
         # Train one episode
-        episode_stats = agent.train(env, temperature, save_mapping=True)
+        episode_stats = agent.train(env, temperature, save_mapping=True, render=render if episode == num_episodes - 1 else False, delay=delay)
         episode_stats["episode"] = episode
         all_results.append(episode_stats)
         

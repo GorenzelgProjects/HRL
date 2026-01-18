@@ -84,6 +84,8 @@ class OptionCriticManager(BaseModelManager):
                 output_dir=self.save_dir,
                 state_mapping_dir=self.state_mapping_dir,
                 verbose=self.verbose,
+                render=render,
+                delay=delay,
             )
 
         return
