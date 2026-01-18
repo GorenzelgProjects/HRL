@@ -204,6 +204,8 @@ def replay_from_option_critic_file(filepath: str, episode_num: Optional[int] = N
         print(f"  Original steps: {ep['total_steps']}")
         print(f"  Original terminated: {ep['terminated']}")
         
+        option_sequence = ep.get('option_sequence', [])
+        
         # Option-critic: prefer flat_action_sequence if available (new format)
         # Otherwise, reconstruct from option_sequence and action_sequence dict (old format)
         if 'flat_action_sequence' in ep:
@@ -214,7 +216,6 @@ def replay_from_option_critic_file(filepath: str, episode_num: Optional[int] = N
             # Old format: reconstruct from option_sequence and action_sequence dict
             # This is a fallback for older saved results
             action_sequence_dict = ep.get('action_sequence', {})
-            option_sequence = ep.get('option_sequence', [])
             
             # Track how many actions we've consumed from each option
             option_action_counts = {str(opt): 0 for opt in action_sequence_dict.keys()}
