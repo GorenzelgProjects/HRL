@@ -22,8 +22,8 @@ experiment:
   render: true
   levels: ???
 
-envirnoment:
-  state_mapping_dir: environment/state_mapping/${envirnoment.name}
+environment:
+  state_mapping_dir: environment/state_mapping/${environment.env_name}
 
 hydra:
   run:

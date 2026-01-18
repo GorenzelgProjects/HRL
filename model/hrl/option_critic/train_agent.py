@@ -13,7 +13,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-import yaml
+import tqdm
 from loguru import logger as logging
 
 # Add project root to Python path
@@ -227,9 +227,9 @@ def train_agent(
 
     # Training loop
     all_results = []
-
-    for episode in range(1, num_episodes + 1):
-        logging.info(f"Episode {episode}/{num_episodes}")
+    pbar = tqdm.tqdm(range(1, num_episodes + 1))
+    for episode in pbar:
+        # logging.info(f"Episode {episode}/{num_episodes}")
 
         # Train one episode
         episode_stats = agent.train(
@@ -247,6 +247,7 @@ def train_agent(
         agent.epsilon = max(agent.epsilon * epsilon_decay, epsilon_min)
         logging.debug(f"Decayed epsilon to {agent.epsilon}")
 
+        pbar.set_postfix(dict(R=episode_stats['total_reward'], steps=episode_stats['total_steps']))
         # Log episode statistics
         if verbose:
             logging.info(

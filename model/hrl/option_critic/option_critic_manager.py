@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import Callable
 
 import gymnasium as gym
@@ -6,7 +6,7 @@ from loguru import logger as logging
 
 from model.base_manager import BaseModelManager
 from model.hrl.option_critic.train_agent import train_agent
-
+from model.hrl.option_critic.plot_termination_probs import plot_termination_probabilities
 
 class OptionCriticManager(BaseModelManager):
     def __init__(
@@ -91,5 +91,23 @@ class OptionCriticManager(BaseModelManager):
         return
 
     def _test(self, levels: list[int], render: bool, delay: float):
-        logging.warning("Not implemented yet")
-        return
+        episode = self.n_episodes
+        for level in levels:
+            level_env = self.partial_env(level)
+            
+            # Plot termination probability of last episode of every level
+            saved_agent_file = Path(self.save_dir) / "agents" / f"agent_episode_{episode}_level_{level}.json"
+            plot_termination_probabilities(
+                level_env,
+                saved_agent_file,
+                self.state_mapping_dir,
+                level,
+                episode,
+                Path(self.save_dir) / "agent_term_probs"
+            )
+        
+                
+        
+                
+            
+        

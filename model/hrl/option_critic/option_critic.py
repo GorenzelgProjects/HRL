@@ -205,7 +205,7 @@ class OptionCritic:
         return self.Q_U_table[state_idx, option_idx, action_idx]
 
     def set_Q_Omega(
-        self, state_idx: int, option: Option, temperature: Optional[float] = 1.0
+        self, state_idx: int, option: Option, new_value
     ) -> None:
         """Updates the Q_Omega table according to its definition
 
@@ -216,12 +216,7 @@ class OptionCritic:
             option (Option): The current option
             temperature (float, optional): The logit sensitivity
         """
-        self.Q_Omega_table[state_idx, option.idx] = torch.sum(
-            option.pi(state_idx, temperature)
-            * self.get_Q_U(state_idx, option.idx)
-        )
-
-        return
+        self.Q_Omega_table[state_idx, option.idx] = new_value
 
     def set_Q_U(
         self, state_idx: int, option_idx: int, action_idx: int, new_value: float
@@ -389,28 +384,40 @@ class OptionCritic:
         """
         option_idx = option.idx
 
-        delta = reward - self.get_Q_U(state_idx, option_idx, action)
+        with torch.no_grad():
+            if not terminated:
+                beta_next = option.beta(new_state_idx)
 
-        if not terminated:
-            with torch.no_grad():
-                delta = (
-                    delta
-                    + self.gamma
-                    * (1 - option.beta(new_state_idx))
-                    * self.get_Q_Omega(new_state_idx, option_idx)
-                    + self.gamma
-                    * option.beta(new_state_idx)
-                    * torch.max(self.get_Q_Omega(new_state_idx))
+                U = (
+                    (1 - beta_next) * self.get_Q_Omega(new_state_idx, option_idx)
+                    + beta_next * torch.max(self.get_Q_Omega(new_state_idx))
                 )
-
-        # Update Q_U
+            else:
+                U = 0.0
+                
+        # Update Q_U     
+        delta_u = (
+            reward
+            + self.gamma * U
+            - self.get_Q_U(state_idx, option_idx, action)
+        )
         updated_Q_U_value = (
-            self.get_Q_U(state_idx, option_idx, action) + self.alpha_critic * delta
+            self.get_Q_U(state_idx, option_idx, action)
+            + self.alpha_critic * delta_u
         )
         self.set_Q_U(state_idx, option_idx, action, updated_Q_U_value)
 
         # Update Q_Omega
-        self.set_Q_Omega(state_idx, option, temperature)
+        delta_omega = (
+            reward
+            + self.gamma * U
+            - self.get_Q_Omega(state_idx, option_idx)
+        )
+        updated_Q_Omega_value = (
+            self.get_Q_Omega(state_idx, option_idx)
+            + self.alpha_critic * delta_omega
+        )
+        self.set_Q_Omega(state_idx, option, updated_Q_Omega_value)
 
         return
 

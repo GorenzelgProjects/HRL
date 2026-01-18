@@ -160,3 +160,9 @@ wwwwwwwwwwwww
             done = True ; reward = 0.0
 
         return self.get_state(state), reward, done, truncated, self.info
+    
+    def get_wall_mask(self) -> np.ndarray:
+        return self.occupancy
+
+    def get_player_loc_from_state(self, state) -> np.ndarray:
+        return np.array(self.tocell[np.argwhere(np.array(state)==1).flatten()[0]])
