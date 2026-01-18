@@ -169,6 +169,7 @@ def train_agent(
     alpha_upsilon: float = 0.25,
     epsilon: float = 0.9,
     epsilon_decay: float = 0.995,
+    epsilon_min: float = 0.01,
     n_steps: int = 1000,
     temperature: float = 1.0,
     save_frequency: int = 10,
@@ -235,7 +236,7 @@ def train_agent(
         all_results.append(episode_stats)
         
         # Decay the exploration parameter
-        agent.epsilon *= epsilon_decay
+        agent.epsilon = max(agent.epsilon * epsilon_decay, epsilon_min)
         logging.debug(f"Decayed epsilon to {agent.epsilon}")
 
         # Log episode statistics

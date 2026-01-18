@@ -104,6 +104,7 @@ def run(cfg: DictConfig) -> None:
                         model_cfg.n_episodes,
                         model_cfg.epsilon,
                         model_cfg.epsilon_decay,
+                        model_cfg.epsilon_min,
                         model_cfg.gamma,
                         model_cfg.alpha_critic,
                         model_cfg.alpha_theta,
