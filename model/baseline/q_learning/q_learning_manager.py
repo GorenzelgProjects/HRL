@@ -46,6 +46,8 @@ class QLearningManager(BaseModelManager):
                 self.learning_rate,
                 self.discount,
                 self.epsilon,
+                self.epsilon_decay,
+                self.epsilon_min,
                 render,
                 delay,
             )
