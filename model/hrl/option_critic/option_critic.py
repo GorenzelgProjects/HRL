@@ -288,7 +288,7 @@ class OptionCritic:
 
         # Store option and action sequence
         option_sequence = []
-        action_sequence = defaultdict(list)
+        action_sequence = defaultdict(lambda: defaultdict(list))
         flat_action_sequence = []  # Flat list for easier replay
         
         # Pick an initial option
@@ -310,7 +310,7 @@ class OptionCritic:
                 break
 
             action = option.choose_action(state_idx, temperature)
-            action_sequence[str(option.idx)].append(action)
+            action_sequence[str(option.idx)][option_switches].append(action)
             flat_action_sequence.append(action)  # Also save in flat format for replay
             
             new_state, reward, terminated, truncated, _ = env.step(action)
