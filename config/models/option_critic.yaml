@@ -1,17 +1,18 @@
 option_critic: 
-  n_states: 1000 # TODO: Should be precomputed
-  n_options: 4
+  n_states: 100 # TODO: Should be precomputed
+  n_options: 2
   n_actions: 4
 
-  n_steps: 1000
-  n_episodes: 1000
+  n_steps: 300
+  n_episodes: 200
 
-  epsilon: 0.1
+  epsilon: 0.4
+  epsilon_decay: 0.98  # Epsilon decay per episode
   gamma: 0.99
   alpha_critic: 0.5
   alpha_theta: 0.25
   alpha_upsilon: 0.25
-  temperature: 1.0
+  temperature: 0.5
 
   save_frequency: 10
   verbose: true
