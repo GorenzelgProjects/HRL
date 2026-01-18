@@ -13,11 +13,11 @@ state_mapping_dir: "environment/state_mapping"
 # Reward Function Configuration
 rewards:
   # Tile visiting rewards
-  new_tile_reward: 0 # 1  # Reward for visiting a new tile
-  step_reward: 0 # -0.1
+  new_tile_reward: 1 # 1  # Reward for visiting a new tile
+  step_reward: -0.1 # -0.1
   
   # Completion rewards
-  level_completion_reward: 10.0 # 5  # Reward for reaching exit
+  level_completion_reward: 5.0 # 5  # Reward for reaching exit
   perfect_completion_bonus: 0 # 10.0  # Bonus if all tiles visited before exit
   
   # Item collection rewards
@@ -26,7 +26,7 @@ rewards:
   treasure_collection_reward: 0  # Reward for collecting treasure
   
   # Penalties
-  invalid_move_penalty: 0 # -0.1  # Penalty for invalid moves
+  invalid_move_penalty: -0.1 # -0.1  # Penalty for invalid moves
   death_penalty: -5.0  # Penalty for dying (getting stuck)
   
   # Distance-based rewards (optional)
