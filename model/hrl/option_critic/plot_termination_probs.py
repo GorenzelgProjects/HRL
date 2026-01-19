@@ -1,15 +1,19 @@
 import os
 import json
 from pathlib import Path
+from collections import defaultdict
 
 import torch
 import matplotlib.pyplot as plt
 
 from model.hrl.option_critic.state_manager import StateManager
 from model.hrl.option_critic.option_critic import Option
+from environment.base_env import BaseDiscreteEnv
 
-def plot_termination_probabilities(level_env, saved_agent_file, state_mapping_dir, level, episode, output_path):
-    output_path = str(output_path)
+def plot_termination_probabilities(level_env: BaseDiscreteEnv, saved_agent_file, state_mapping_dir, level, episode, fig_root_path):
+    level_env.reset()
+    fig_root_path = str(fig_root_path)
+    output_path = os.path.join(fig_root_path, str(level))
     saved_agent_file = str(saved_agent_file)
     
     state_manager = StateManager(Path(state_mapping_dir))
@@ -25,6 +29,7 @@ def plot_termination_probabilities(level_env, saved_agent_file, state_mapping_di
     for option_data in options_data:
         termination_probs = -1 * wall_mask
         termination_probs = termination_probs.astype(float)
+        termination_probs_dict = defaultdict(lambda: termination_probs)
         
         theta = torch.tensor(option_data["theta"])
         upsilon = torch.tensor(option_data["upsilon"])
@@ -36,14 +41,20 @@ def plot_termination_probabilities(level_env, saved_agent_file, state_mapping_di
             # TODO: Update to be environment specific wrt.
             #    states having more info than just player location
             termination_prob = option.beta(state_idx)
-            player_location = level_env.get_player_loc_from_state(state)
-            termination_probs[tuple(player_location)] = termination_prob.detach().item()
+            player_location, info = level_env.get_player_loc_from_state(state)
+            termination_probs_dict[info][tuple(player_location)] = termination_prob.detach().item()
 
-        plt.imshow(termination_probs, cmap="viridis", origin="lower")
-        plt.colorbar(label="Probability")
+        for info, termination_prob_arr in termination_probs_dict.items():
+            info_str = str(info)
+            if len(termination_probs_dict) > 1:
+                fig_dir = os.path.join(output_path, info_str.replace(" ", "-"))
+            else:
+                fig_dir = output_path
+            plt.imshow(termination_prob_arr, cmap="viridis", origin="lower")
+            plt.colorbar(label="Probability")
 
-        plt.title(f"Termination Probabilities Option {option_data['idx']}")
-        os.makedirs(output_path, exist_ok=True)
-        plt.savefig(os.path.join(output_path, f"term-prob_lvl-{level}_ep-{episode}_op-{option_data['idx']}.png"))
-        plt.show()
-        plt.close()
+            plt.title(f"Termination Probs Option: {option_data['idx']}, Info: {info_str}")
+            os.makedirs(fig_dir, exist_ok=True)
+            plt.savefig(os.path.join(output_path, f"term-prob_ep-{episode}_op-{option_data['idx']}.png"))
+            plt.show()
+            plt.close()

@@ -866,9 +866,24 @@ class ThinIceEnv(gym.Env):
                 grid[wall.y, wall.x] = 1
         return grid
     
-    def get_player_loc_from_state(self, state) -> np.ndarray:
-        raise NotImplementedError("Not implemented yet as there is a difference between has key or not")
-        return np.argwhere(state == 4) 
+    def get_player_loc_from_state(self, state) -> tuple[np.ndarray, Optional[str]]:
+        """
+        Only implemented for has key or not and keyhole unlocked or not as extra 
+        information as those are the most relevant.
+        """
+        if self.settings["use_coord_state_representation"]:
+            has_key_str = "Has Key" if state[2] else "No Key"
+            keyhole_unlocked_str = "Keyhole Unlocked" if state[3] else "Keyhole Locked"
+            info_str = has_key_str + "," + keyhole_unlocked_str
+            return np.array([state[1], state[0]]), info_str
+        else:
+            assert 4 in state # Check that the player is in the state
+            has_key_str = "Has Key" if 6 in state else "No Key"
+            keyhole_unlocked_str = "Keyhole Unlocked" if 7 in state else "Keyhole Locked"
+            info_str = has_key_str + "," + keyhole_unlocked_str
+            grid_shape = (self.grid_height, self.grid_width)
+            player_loc = np.unravel_index(np.argwhere(state == 4)[0,0], grid_shape)
+            np.array(player_loc), info_str
 
 
 # Register the environment

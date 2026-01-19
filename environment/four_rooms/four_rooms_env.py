@@ -164,5 +164,5 @@ wwwwwwwwwwwww
     def get_wall_mask(self) -> np.ndarray:
         return self.occupancy
 
-    def get_player_loc_from_state(self, state) -> np.ndarray:
-        return np.array(self.tocell[np.argwhere(np.array(state)==1).flatten()[0]])
+    def get_player_loc_from_state(self, state) -> tuple[np.ndarray, Optional[str]]:
+        return np.array(self.tocell[np.argwhere(np.array(state)==1).flatten()[0]]), None
