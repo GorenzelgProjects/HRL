@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import Callable
 
 import gymnasium as gym
@@ -6,7 +6,7 @@ from loguru import logger as logging
 
 from model.base_manager import BaseModelManager
 from model.hrl.option_critic.train_agent import train_agent
-
+from model.hrl.option_critic.plot_termination_probs import plot_termination_probabilities
 
 class OptionCriticManager(BaseModelManager):
     def __init__(
@@ -18,6 +18,7 @@ class OptionCriticManager(BaseModelManager):
         n_episodes: int,
         epsilon: float,
         epsilon_decay: float,
+        epsilon_min: float,
         gamma: float,
         alpha_critic: float,
         alpha_theta: float,
@@ -40,6 +41,7 @@ class OptionCriticManager(BaseModelManager):
 
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
+        self.epsilon_min = epsilon_min
         self.gamma = gamma
         self.alpha_critic = alpha_critic
         self.alpha_theta = alpha_theta
@@ -75,16 +77,37 @@ class OptionCriticManager(BaseModelManager):
                 alpha_upsilon=self.alpha_upsilon,
                 epsilon=self.epsilon,
                 epsilon_decay = self.epsilon_decay,
+                epsilon_min = self.epsilon_min,
                 n_steps=self.n_steps,
                 temperature=self.temperature,
                 save_frequency=self.save_frequency,
                 output_dir=self.save_dir,
                 state_mapping_dir=self.state_mapping_dir,
                 verbose=self.verbose,
+                render=render,
+                delay=delay,
             )
 
         return
 
     def _test(self, levels: list[int], render: bool, delay: float):
-        logging.warning("Not implemented yet")
-        return
+        episode = self.n_episodes
+        for level in levels:
+            level_env = self.partial_env(level)
+            
+            # Plot termination probability of last episode of every level
+            saved_agent_file = Path(self.save_dir) / "agents" / f"agent_episode_{episode}_level_{level}.json"
+            plot_termination_probabilities(
+                level_env,
+                saved_agent_file,
+                self.state_mapping_dir,
+                level,
+                episode,
+                Path(self.save_dir) / "agent_term_probs"
+            )
+        
+                
+        
+                
+            
+        

@@ -769,6 +769,17 @@ class ThinIceEnv(gym.Env):
         if self.screen:
             pg.display.quit()
         # Don't quit pygame completely as it might be used elsewhere
+        
+    def get_wall_mask(self) -> np.ndarray:
+        grid = np.zeros((self.grid_height, self.grid_width), dtype=np.int32)
+        for wall in self.walls:
+            if 0 <= wall.x < self.grid_width and 0 <= wall.y < self.grid_height:
+                grid[wall.y, wall.x] = 1
+        return grid
+    
+    def get_player_loc_from_state(self, state) -> np.ndarray:
+        raise NotImplementedError("Not implemented yet as there is a difference between has key or not")
+        return np.argwhere(state == 4) 
 
 
 # Register the environment

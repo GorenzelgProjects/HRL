@@ -38,6 +38,10 @@ def run(cfg: DictConfig) -> None:
 
             env_id = "ThinIce-v0"
             env_entrypoint = ThinIceEnv
+        case "four_rooms":
+            from environment.four_rooms.four_rooms_env import Fourrooms
+            env_id = "FourRooms"
+            env_entrypoint = Fourrooms
         case _:
             raise ValueError(f"Unknown environment name: {cfg.environment.name}")
 
@@ -104,6 +108,7 @@ def run(cfg: DictConfig) -> None:
                         model_cfg.n_episodes,
                         model_cfg.epsilon,
                         model_cfg.epsilon_decay,
+                        model_cfg.epsilon_min,
                         model_cfg.gamma,
                         model_cfg.alpha_critic,
                         model_cfg.alpha_theta,
@@ -124,7 +129,7 @@ def run(cfg: DictConfig) -> None:
 
     # Find out which levels to run
     if cfg.experiment.levels == "all":
-        levels = list(range(1, 20))  # TODO: Hardcoded
+        levels = cfg.environment.level_list
     else:
         levels = list(cfg.experiment.levels)
 

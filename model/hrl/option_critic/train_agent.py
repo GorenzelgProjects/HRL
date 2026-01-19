@@ -5,7 +5,6 @@ This script trains an OptionCritic agent for a specified number of episodes
 and saves the trained agent, options, and training results.
 """
 
-import argparse
 import json
 import sys
 from pathlib import Path
@@ -14,7 +13,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
-import yaml
+import tqdm
 from loguru import logger as logging
 
 # Add project root to Python path
@@ -169,12 +168,15 @@ def train_agent(
     alpha_upsilon: float = 0.25,
     epsilon: float = 0.9,
     epsilon_decay: float = 0.995,
+    epsilon_min: float = 0.01,
     n_steps: int = 1000,
     temperature: float = 1.0,
     save_frequency: int = 10,
     output_dir: str = "training_output",
     state_mapping_dir: str = "environment/state_mapping",
     verbose: bool = True,
+    render: bool = False,
+    delay: bool = 0.05,
 ) -> Tuple[OptionCritic, List[Dict]]:
     """Train OptionCritic agent for specified number of episodes
 
@@ -225,19 +227,27 @@ def train_agent(
 
     # Training loop
     all_results = []
-
-    for episode in range(1, num_episodes + 1):
-        logging.info(f"Episode {episode}/{num_episodes}")
+    pbar = tqdm.tqdm(range(1, num_episodes + 1))
+    for episode in pbar:
+        # logging.info(f"Episode {episode}/{num_episodes}")
 
         # Train one episode
-        episode_stats = agent.train(env, temperature, save_mapping=True)
+        episode_stats = agent.train(
+            env,
+            temperature,
+            save_mapping=True,
+            render=render if episode == num_episodes - 1 else False,
+            delay=delay
+        )
+        
         episode_stats["episode"] = episode
         all_results.append(episode_stats)
         
         # Decay the exploration parameter
-        agent.epsilon *= epsilon_decay
+        agent.epsilon = max(agent.epsilon * epsilon_decay, epsilon_min)
         logging.debug(f"Decayed epsilon to {agent.epsilon}")
 
+        pbar.set_postfix(dict(R=episode_stats['total_reward'], steps=episode_stats['total_steps']))
         # Log episode statistics
         if verbose:
             logging.info(

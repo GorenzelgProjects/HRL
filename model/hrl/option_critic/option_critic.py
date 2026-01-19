@@ -1,6 +1,7 @@
 # Inspired by https://github.com/alversafa/option-critic-arch/blob/master/utils.py
 # and https://github.com/theophilegervet/options-hierarchical-rl/blob/master/implementations/option_critic.ipynb
 
+import time
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -204,7 +205,7 @@ class OptionCritic:
         return self.Q_U_table[state_idx, option_idx, action_idx]
 
     def set_Q_Omega(
-        self, state_idx: int, option: Option, temperature: Optional[float] = 1.0
+        self, state_idx: int, option: Option, new_value
     ) -> None:
         """Updates the Q_Omega table according to its definition
 
@@ -215,12 +216,7 @@ class OptionCritic:
             option (Option): The current option
             temperature (float, optional): The logit sensitivity
         """
-        self.Q_Omega_table[state_idx, option.idx] = torch.sum(
-            option.pi(state_idx, temperature)
-            * self.get_Q_U(state_idx, option.idx)
-        )
-
-        return
+        self.Q_Omega_table[state_idx, option.idx] = new_value
 
     def set_Q_U(
         self, state_idx: int, option_idx: int, action_idx: int, new_value: float
@@ -257,7 +253,7 @@ class OptionCritic:
             return self.options[best_option_id]
 
     def train(
-        self, env: ThinIceEnv, temperature: float, save_mapping: bool = True
+        self, env: ThinIceEnv, temperature: float, save_mapping: bool = True, render: bool = False, delay: float = 0.02
     ) -> tuple[list, dict[list]]:
         """Train the Optic-Critic for a maximum of n_steps
 
@@ -288,7 +284,7 @@ class OptionCritic:
 
         # Store option and action sequence
         option_sequence = []
-        action_sequence = defaultdict(list)
+        action_sequence = defaultdict(lambda: defaultdict(list))
         flat_action_sequence = []  # Flat list for easier replay
         
         # Pick an initial option
@@ -310,7 +306,7 @@ class OptionCritic:
                 break
 
             action = option.choose_action(state_idx, temperature)
-            action_sequence[str(option.idx)].append(action)
+            action_sequence[str(option.idx)][option_switches].append(action)
             flat_action_sequence.append(action)  # Also save in flat format for replay
             
             new_state, reward, terminated, truncated, _ = env.step(action)
@@ -341,6 +337,10 @@ class OptionCritic:
 
             state_idx = new_state_idx
             step += 1
+            
+            if render:  
+                env.render()
+                time.sleep(delay)
 
         # Save state mapping after training if requested
         if save_mapping:
@@ -384,28 +384,40 @@ class OptionCritic:
         """
         option_idx = option.idx
 
-        delta = reward - self.get_Q_U(state_idx, option_idx, action)
+        with torch.no_grad():
+            if not terminated:
+                beta_next = option.beta(new_state_idx)
 
-        if not terminated:
-            with torch.no_grad():
-                delta = (
-                    delta
-                    + self.gamma
-                    * (1 - option.beta(new_state_idx))
-                    * self.get_Q_Omega(new_state_idx, option_idx)
-                    + self.gamma
-                    * option.beta(new_state_idx)
-                    * torch.max(self.get_Q_Omega(new_state_idx))
+                U = (
+                    (1 - beta_next) * self.get_Q_Omega(new_state_idx, option_idx)
+                    + beta_next * torch.max(self.get_Q_Omega(new_state_idx))
                 )
-
-        # Update Q_U
+            else:
+                U = 0.0
+                
+        # Update Q_U     
+        delta_u = (
+            reward
+            + self.gamma * U
+            - self.get_Q_U(state_idx, option_idx, action)
+        )
         updated_Q_U_value = (
-            self.get_Q_U(state_idx, option_idx, action) + self.alpha_critic * delta
+            self.get_Q_U(state_idx, option_idx, action)
+            + self.alpha_critic * delta_u
         )
         self.set_Q_U(state_idx, option_idx, action, updated_Q_U_value)
 
         # Update Q_Omega
-        self.set_Q_Omega(state_idx, option, temperature)
+        delta_omega = (
+            reward
+            + self.gamma * U
+            - self.get_Q_Omega(state_idx, option_idx)
+        )
+        updated_Q_Omega_value = (
+            self.get_Q_Omega(state_idx, option_idx)
+            + self.alpha_critic * delta_omega
+        )
+        self.set_Q_Omega(state_idx, option, updated_Q_Omega_value)
 
         return
 

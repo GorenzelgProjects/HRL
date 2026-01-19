@@ -1,0 +1,13 @@
+defaults:
+  - base
+
+env_name: four_rooms
+
+level_list: [1]
+
+env_specific_settings:
+  settings: None
+
+# Reward Function Configuration
+rewards:
+  goal: 1

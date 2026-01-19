@@ -14,7 +14,7 @@ class StateManager:
 
         # Directory for saving/loading state mappings (default: hrl_models/option_critic/state_mappings/)
         self.state_mapping_dir = state_mapping_dir
-        self.state_mapping_dir.mkdir(exist_ok=True)
+        self.state_mapping_dir.mkdir(exist_ok=True, parents=True)
         self.current_level: Optional[int] = None
 
     def get_state_mapping_file(self, level: int) -> Path:
@@ -71,7 +71,7 @@ class StateManager:
             bool: True if mapping was saved successfully, False otherwise
         """
         mapping_file = self.get_state_mapping_file(level)
-        print("mapping_file: ", mapping_file)
+        # print("mapping_file: ", mapping_file)
 
         try:
             # Convert tuple keys to lists for JSON serialization
@@ -89,7 +89,7 @@ class StateManager:
             with open(mapping_file, "w") as f:
                 json.dump(data, f, indent=2)
 
-            logging.info(
+            logging.debug(
                 f"Saved state mapping for level {level}: {self.n_unique_states} unique states to {mapping_file}"
             )
             return True
