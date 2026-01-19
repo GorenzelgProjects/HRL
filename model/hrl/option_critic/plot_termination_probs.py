@@ -40,9 +40,10 @@ def plot_termination_probabilities(level_env, saved_agent_file, state_mapping_di
             termination_probs[tuple(player_location)] = termination_prob.detach().item()
 
         plt.imshow(termination_probs, cmap="viridis", origin="lower")
-        plt.colorbar(label="Probability") # TODO: Fix that it makes a bunch of these lol
+        plt.colorbar(label="Probability")
 
         plt.title(f"Termination Probabilities Option {option_data['idx']}")
         os.makedirs(output_path, exist_ok=True)
         plt.savefig(os.path.join(output_path, f"term-prob_lvl-{level}_ep-{episode}_op-{option_data['idx']}.png"))
         plt.show()
+        plt.close()
