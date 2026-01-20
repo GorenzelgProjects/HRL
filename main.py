@@ -120,6 +120,9 @@ def run(cfg: DictConfig) -> None:
                         cfg.save_dir,
                         cfg.environment.state_mapping_dir,
                         partial_env,
+                        intrinsic_name=model_cfg.intrinsic_name,
+                        intrinsic_weight_start=model_cfg.intrinsic_weight_start,
+                        intrinsic_decay=model_cfg.intrinsic_decay,
                     )
                 )
             case _:

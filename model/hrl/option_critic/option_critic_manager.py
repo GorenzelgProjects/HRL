@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 import gymnasium as gym
 from loguru import logger as logging
@@ -30,6 +30,9 @@ class OptionCriticManager(BaseModelManager):
         save_dir: str,
         state_mapping_dir: str,
         partial_env: Callable[[int], gym.Env],
+        intrinsic_name: Optional[str] = None,
+        intrinsic_weight_start: Optional[float] = 5,
+        intrinsic_decay: Optional[float] = 200_000, # NOTE: Should scale with how many steps+eps there are
     ) -> None:
 
         self.n_states = n_states
@@ -51,6 +54,10 @@ class OptionCriticManager(BaseModelManager):
         self.save_frequency = save_frequency
         self.state_mapping_dir = state_mapping_dir
         self.verbose = verbose and not quiet
+        
+        self.intrinsic_name = intrinsic_name
+        self.intrinsic_weight_start = intrinsic_weight_start
+        self.intrinsic_decay = intrinsic_decay
 
         super().__init__(partial_env, model_name="option_critic", save_dir=save_dir)
 
@@ -86,6 +93,9 @@ class OptionCriticManager(BaseModelManager):
                 verbose=self.verbose,
                 render=render,
                 delay=delay,
+                intrinsic_name=self.intrinsic_name,
+                intrinsic_weight_start=self.intrinsic_weight_start,
+                intrinsic_decay=self.intrinsic_decay,
             )
 
         return

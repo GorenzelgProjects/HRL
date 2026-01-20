@@ -9,12 +9,14 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 import torch
 import tqdm
 from loguru import logger as logging
+
+from model.hrl.option_critic.intrinsic_rewards.novelty import NoveltyIntrinsic
 
 # Add project root to Python path
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -177,6 +179,10 @@ def train_agent(
     verbose: bool = True,
     render: bool = False,
     delay: bool = 0.05,
+    intrinsic_name: Optional[str] = None,
+    intrinsic_weight_start: float = 5.,
+    intrinsic_decay = 200_000,
+    
 ) -> Tuple[OptionCritic, List[Dict]]:
     """Train OptionCritic agent for specified number of episodes
 
@@ -198,6 +204,11 @@ def train_agent(
         state_mapping_dir: Directory to where the state_to_idx dict is stored for a level
         reward_config: Directory to where the env config is stored
         verbose: Whether to print detailed logs
+        render: Whether to render durint training
+        delay: render delay,
+        intrinsic_name: Optional, None if not using intrinsic reward
+        intrinsic_weight_start: float = 5.,
+        intrinsic_decay = 200_000,
 
     Returns:
         Tuple of (trained agent, list of episode results)
@@ -212,6 +223,17 @@ def train_agent(
     # Create state manager
     state_manager = StateManager(Path(state_mapping_dir))
 
+    # Instantiate intrinsic rewarder
+    if intrinsic_name:
+        match intrinsic_name:
+            case "novelty":
+                intrinsic_rewarder = NoveltyIntrinsic(intrinsic_weight_start, intrinsic_decay)
+            case _:
+                raise NotImplementedError(f"Could not find intrinsic {intrinsic_name}")
+    else:
+        intrinsic_rewarder = None
+
+
     agent = OptionCritic(
         n_states=n_states,
         n_actions=n_actions,
@@ -223,6 +245,7 @@ def train_agent(
         epsilon=epsilon,
         n_steps=n_steps,
         state_manager=state_manager,
+        intrinsic_rewarder=intrinsic_rewarder,
     )
 
     # Training loop

@@ -9,6 +9,7 @@ from loguru import logger as logging
 
 from environment.thin_ice.thin_ice_env import ThinIceEnv
 from model.hrl.option_critic.state_manager import StateManager
+from model.hrl.option_critic.intrinsic_rewards.base_intrinsic import BaseIntrinsic
 
 from typing import Optional
 from collections import defaultdict
@@ -122,6 +123,7 @@ class OptionCritic:
         epsilon: float = 0.1,
         n_steps: int = 1000,
         state_manager: Optional[StateManager] = None,
+        intrinsic_rewarder: Optional[BaseIntrinsic] = None,
     ):
         """The class for the OptionCritic architecture
 
@@ -165,7 +167,8 @@ class OptionCritic:
         self.n_steps = n_steps
 
         self.state_manager = state_manager
-
+        self.intrinsic_rewarder = intrinsic_rewarder
+        
     def get_Q_Omega(
         self, state_idx: int, option_idx: Optional[int] = None
     ) -> torch.Tensor:
@@ -311,6 +314,11 @@ class OptionCritic:
             
             new_state, reward, terminated, truncated, _ = env.step(action)
             new_state_idx = self._state_to_idx(new_state, level=level)
+            
+            if self.intrinsic_rewarder:
+                reward += self.intrinsic_rewarder.weight * self.intrinsic_rewarder.compute(new_state_idx)
+                self.intrinsic_rewarder.update_weight()
+                
             total_reward += reward
 
             # Options evaluation
