@@ -1,0 +1,21 @@
+# @package _global_
+defaults:
+  - override /environment: thin_ice
+  - override /models: [option_critic]
+  - _self_
+
+experiment:
+  name: sf_gas_${timestamp}
+  levels: [1, 2, 3]
+
+# Enable Simple-SF and rollout collection
+models:
+  option_critic:
+    use_simple_sf: true
+    sf_d: 256
+    lambda_sf: 0.1
+    alpha_w: 0.1
+    sf_lr_main: 1e-3
+    sf_lr_w: 1e-2
+    collect_rollouts: true
+    rollout_save_dir: "logs/${experiment.name}/rollouts"

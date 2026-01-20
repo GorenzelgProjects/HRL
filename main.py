@@ -99,29 +99,42 @@ def run(cfg: DictConfig) -> None:
                     RandomManager(model_cfg.random_episodes, partial_env, cfg.save_dir)
                 )
             case "option_critic":
-                models.append(
-                    OptionCriticManager(
-                        model_cfg.n_states,
-                        model_cfg.n_options,
-                        model_cfg.n_actions,
-                        model_cfg.n_steps,
-                        model_cfg.n_episodes,
-                        model_cfg.epsilon,
-                        model_cfg.epsilon_decay,
-                        model_cfg.epsilon_min,
-                        model_cfg.gamma,
-                        model_cfg.alpha_critic,
-                        model_cfg.alpha_theta,
-                        model_cfg.alpha_upsilon,
-                        model_cfg.temperature,
-                        model_cfg.save_frequency,
-                        model_cfg.verbose,
-                        model_cfg.quiet,
-                        cfg.save_dir,
-                        cfg.environment.state_mapping_dir,
-                        partial_env,
-                    )
+                manager = OptionCriticManager(
+                    model_cfg.n_states,
+                    model_cfg.n_options,
+                    model_cfg.n_actions,
+                    model_cfg.n_steps,
+                    model_cfg.n_episodes,
+                    model_cfg.epsilon,
+                    model_cfg.epsilon_decay,
+                    model_cfg.epsilon_min,
+                    model_cfg.gamma,
+                    model_cfg.alpha_critic,
+                    model_cfg.alpha_theta,
+                    model_cfg.alpha_upsilon,
+                    model_cfg.temperature,
+                    model_cfg.save_frequency,
+                    model_cfg.verbose,
+                    model_cfg.quiet,
+                    cfg.save_dir,
+                    cfg.environment.state_mapping_dir,
+                    partial_env,
                 )
+                # Set addon parameters from config if available
+                if hasattr(model_cfg, 'use_simple_sf'):
+                    manager.use_simple_sf = model_cfg.use_simple_sf
+                    manager.sf_d = getattr(model_cfg, 'sf_d', 256)
+                    manager.lambda_sf = getattr(model_cfg, 'lambda_sf', 0.1)
+                    manager.alpha_w = getattr(model_cfg, 'alpha_w', 0.1)
+                    manager.sf_lr_main = getattr(model_cfg, 'sf_lr_main', 1e-3)
+                    manager.sf_lr_w = getattr(model_cfg, 'sf_lr_w', 1e-2)
+                    # Transfer learning parameters
+                    manager.sf_transfer_from_level = getattr(model_cfg, 'sf_transfer_from_level', None)
+                    manager.sf_freeze_encoder = getattr(model_cfg, 'sf_freeze_encoder', True)
+                if hasattr(model_cfg, 'collect_rollouts'):
+                    manager.collect_rollouts = model_cfg.collect_rollouts
+                    manager.rollout_save_dir = getattr(model_cfg, 'rollout_save_dir', None)
+                models.append(manager)
             case _:
                 raise ValueError(
                     f"{model_name=} not recognized. Try astar/q_learning/random"

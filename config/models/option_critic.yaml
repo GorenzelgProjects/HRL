@@ -19,4 +19,20 @@ option_critic:
   verbose: false
   quiet: false
 
+  # Simple Successor Features addon
+  use_simple_sf: true
+  sf_d: 256  # Successor features dimension
+  lambda_sf: 0.1  # Weight for SF losses
+  alpha_w: 0.1  # Weight for reward prediction loss
+  sf_lr_main: 1e-3  # Learning rate for encoder + SF heads
+  sf_lr_w: 1e-2  # Learning rate for task vector
+  
+  # Transfer learning: reuse encoder + SF heads from another level
+  sf_transfer_from_level: 1  # Level to load shared components from (null = no transfer, e.g., 1)
+  sf_freeze_encoder: true  # Freeze encoder when using transfer learning (default: true)
+
+  # GAS addon
+  collect_rollouts: false  # Whether to collect rollouts for GAS mining
+  rollout_save_dir: logs/your_experiment/rollouts  # Directory to save rollouts (null = don't save)
+
   

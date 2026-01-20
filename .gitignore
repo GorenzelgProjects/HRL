@@ -240,3 +240,6 @@ plots/training_metrics_level_1.png
 plots/
 *.json
 *.pt
+*.mp4
+*.gif
+*.png

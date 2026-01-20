@@ -253,7 +253,8 @@ class OptionCritic:
             return self.options[best_option_id]
 
     def train(
-        self, env: ThinIceEnv, temperature: float, save_mapping: bool = True, render: bool = False, delay: float = 0.02
+        self, env: ThinIceEnv, temperature: float, save_mapping: bool = True, render: bool = False, delay: float = 0.02,
+        observation_collector=None, encoder=None
     ) -> tuple[list, dict[list]]:
         """Train the Optic-Critic for a maximum of n_steps
 
@@ -309,9 +310,37 @@ class OptionCritic:
             action_sequence[str(option.idx)][option_switches].append(action)
             flat_action_sequence.append(action)  # Also save in flat format for replay
             
-            new_state, reward, terminated, truncated, _ = env.step(action)
+            # Collect observation if collector provided
+            if observation_collector is not None:
+                z = None
+                if encoder is not None:
+                    obs_tensor = torch.from_numpy(state).float()
+                    if obs_tensor.dim() == 1:
+                        obs_tensor = obs_tensor.unsqueeze(0)
+                    with torch.no_grad():
+                        z = encoder(obs_tensor).squeeze(0).cpu().numpy()
+                
+                observation_collector.add_step(
+                    obs=state,
+                    option_idx=option.idx,
+                    action=action,
+                    reward=0.0,  # Will be updated after step
+                    done=False,
+                    info={},
+                    z=z
+                )
+            
+            new_state, reward, terminated, truncated, info = env.step(action)
             new_state_idx = self._state_to_idx(new_state, level=level)
             total_reward += reward
+            
+            # Update collector with reward and done
+            if observation_collector is not None:
+                # Update last step with actual reward and done
+                if len(observation_collector.current_episode['rewards']) > 0:
+                    observation_collector.current_episode['rewards'][-1] = reward
+                    observation_collector.current_episode['dones'][-1] = terminated or truncated
+                    observation_collector.current_episode['info'][-1] = info
 
             # Options evaluation
             self.options_evaluation(
@@ -345,6 +374,10 @@ class OptionCritic:
         # Save state mapping after training if requested
         if save_mapping:
             self.state_manager.save_state_mapping(level)
+        
+        # Finish episode in collector
+        if observation_collector is not None:
+            observation_collector.finish_episode(terminated, truncated, total_reward)
 
         episode_stats = {
             'level': level,
