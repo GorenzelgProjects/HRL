@@ -19,4 +19,6 @@ option_critic:
   verbose: false
   quiet: false
 
-  
+  intrinsic_name: novelty
+  intrinsic_weight_start: 5.0
+  intrinsic_decay: 200000 # NOTE: SHOULD SCALE WITH number of episodes and steps
