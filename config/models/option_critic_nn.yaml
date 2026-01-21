@@ -1,0 +1,29 @@
+option_critic_nn: 
+  n_states: 104 # TODO: Should be precomputed
+  n_options: 2
+  n_actions: 4
+
+  n_steps: 1000
+  n_episodes: 1000
+
+  n_filters: [32, 64, 64]
+  conv_sizes: [8, 4, 3]
+  strides: [4, 2, 1]
+  n_neurons: 512
+
+  optimizer_name: "RMSProp"
+
+  epsilon: 0.9
+  epsilon_decay: 0.998  # Epsilon decay per episode
+  epsilon_min: 0.05 
+  gamma: 0.99
+  beta_reg: 0.01
+  entropy_reg: 0.01
+  lr: 0.00025
+  temperature: 1e-2
+
+  save_frequency: 100
+  verbose: false
+  quiet: false
+
+  max_history: 10000

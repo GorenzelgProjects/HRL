@@ -2,10 +2,12 @@ defaults:
   - base
 
 env_name: thin_ice
+img_size: [84, 84]
 
 env_specific_settings:
   generate_water: false
   use_coord_state_representation: true
+  use_image_state_representation: false
 
 level_list: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]
 

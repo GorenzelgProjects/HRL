@@ -13,6 +13,7 @@ from omegaconf import DictConfig
 
 from model.baseline.astar.astar_manager import AStarManager
 from model.hrl.option_critic.option_critic_manager import OptionCriticManager
+from model.hrl.option_critic_nn.option_critic_nn_manager import OptionCriticNNManager
 from model.baseline.q_learning.q_learning_manager import QLearningManager
 from model.baseline.random.random_manager import RandomManager
 
@@ -101,25 +102,56 @@ def run(cfg: DictConfig) -> None:
             case "option_critic":
                 models.append(
                     OptionCriticManager(
-                        model_cfg.n_states,
-                        model_cfg.n_options,
-                        model_cfg.n_actions,
-                        model_cfg.n_steps,
-                        model_cfg.n_episodes,
-                        model_cfg.epsilon,
-                        model_cfg.epsilon_decay,
-                        model_cfg.epsilon_min,
-                        model_cfg.gamma,
-                        model_cfg.alpha_critic,
-                        model_cfg.alpha_theta,
-                        model_cfg.alpha_upsilon,
-                        model_cfg.temperature,
-                        model_cfg.save_frequency,
-                        model_cfg.verbose,
-                        model_cfg.quiet,
-                        cfg.save_dir,
-                        cfg.environment.state_mapping_dir,
-                        partial_env,
+                        n_states=model_cfg.n_states,
+                        n_options=model_cfg.n_options,
+                        n_actions=model_cfg.n_actions,
+                        n_steps=model_cfg.n_steps,
+                        n_episodes=model_cfg.n_episodes,
+                        epsilon=model_cfg.epsilon,
+                        epsilon_decay=model_cfg.epsilon_decay,
+                        epsilon_min=model_cfg.epsilon_min,
+                        gamma=model_cfg.gamma,
+                        alpha_critic=model_cfg.alpha_critic,
+                        alpha_theta=model_cfg.alpha_theta,
+                        alpha_upsilon=model_cfg.alpha_upsilon,
+                        temperature=model_cfg.temperature,
+                        save_frequency=model_cfg.save_frequency,
+                        verbose=model_cfg.verbose,
+                        quiet=model_cfg.quiet,
+                        save_dir=cfg.save_dir,
+                        state_mapping_dir=cfg.environment.state_mapping_dir,
+                        partial_env=partial_env,
+                    )
+                )
+            case "option_critic_nn":
+                models.append(
+                    OptionCriticNNManager(
+                        n_states=model_cfg.n_states,
+                        n_options=model_cfg.n_options,
+                        n_actions=model_cfg.n_actions,
+                        n_steps=model_cfg.n_steps,
+                        n_episodes=model_cfg.n_episodes,
+                        n_filters=model_cfg.n_filters,
+                        conv_sizes=model_cfg.conv_sizes,
+                        strides=model_cfg.strides,
+                        n_neurons=model_cfg.n_neurons,
+                        epsilon=model_cfg.epsilon,
+                        epsilon_decay=model_cfg.epsilon_decay,
+                        epsilon_min=model_cfg.epsilon_min,
+                        optimizer_name=model_cfg.optimizer_name,
+                        gamma=model_cfg.gamma,
+                        lr=model_cfg.lr,
+                        beta_reg=model_cfg.beta_reg,
+                        entropy_reg=model_cfg.entropy_reg,
+                        temperature=model_cfg.temperature,
+                        img_size=cfg.environment.img_size,
+                        save_frequency=model_cfg.save_frequency,
+                        verbose=model_cfg.verbose,
+                        quiet=model_cfg.quiet,
+                        max_history=model_cfg.max_history,
+                        cuda=cfg.experiment.cuda,
+                        save_dir=cfg.save_dir,
+                        partial_env=partial_env
                     )
                 )
             case _:
