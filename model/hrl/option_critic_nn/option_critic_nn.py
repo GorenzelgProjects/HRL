@@ -88,7 +88,7 @@ class OptionCritic:
             option_id = torch.randint(0, self.n_options, (1,)).item()
         else:
             # Exploit
-            option_id = torch.argmax(Q_Omega)
+            option_id = torch.argmax(Q_Omega).item()
 
         return option_id
     

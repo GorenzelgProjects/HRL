@@ -44,57 +44,22 @@ def save_agent(agent: OptionCritic, save_dir: Path, episode: int, level: int):
         "n_actions": agent.n_actions,
         "n_options": agent.n_options,
         "gamma": agent.gamma,
-        "alpha_critic": agent.alpha_critic,
-        "alpha_theta": agent.alpha_theta,
-        "alpha_upsilon": agent.alpha_upsilon,
         "epsilon": agent.epsilon,
         "n_steps": agent.n_steps,
-        "n_unique_states": agent.state_manager.n_unique_states,
-        "Q_Omega_table": agent.Q_Omega_table.detach().cpu().numpy().tolist(),
-        "Q_U_table": agent.Q_U_table.detach().cpu().numpy().tolist(),
+        "beta_reg": agent.beta_reg,
+        "entropy_reg": agent.entropy_reg,
+        "img_size": tuple(agent.downsample_size)
     }
-
-    # Save options (theta and upsilon for each option)
-    options_data = []
-    for option in agent.options:
-        options_data.append(
-            {
-                "idx": option.idx,
-                "theta": option.theta.detach().cpu().numpy().tolist(),
-                "upsilon": option.upsilon.detach().cpu().numpy().tolist(),
-            }
-        )
-    agent_state["options"] = options_data
 
     # Save to JSON
     agent_file = save_dir / f"agent_episode_{episode}_level_{level}.json"
     with open(agent_file, "w") as f:
         json.dump(agent_state, f, indent=2)
 
-    # Also save as PyTorch state dict for easier loading
+    # Save encoder state dict
     torch_file = save_dir / f"agent_episode_{episode}_level_{level}.pt"
-    torch.save(
-        {
-            "Q_Omega_table": agent.Q_Omega_table,
-            "Q_U_table": agent.Q_U_table,
-            "options": {
-                opt.idx: {"theta": opt.theta, "upsilon": opt.upsilon}
-                for opt in agent.options
-            },
-            "config": {
-                "n_states": agent.n_states,
-                "n_actions": agent.n_actions,
-                "n_options": agent.n_options,
-                "gamma": agent.gamma,
-                "alpha_critic": agent.alpha_critic,
-                "alpha_theta": agent.alpha_theta,
-                "alpha_upsilon": agent.alpha_upsilon,
-                "epsilon": agent.epsilon,
-                "n_steps": agent.n_steps,
-            },
-        },
-        torch_file,
-    )
+    encoder = agent.encoder
+    torch.save(encoder, torch_file)
 
     logging.info(f"Saved agent to {agent_file} and {torch_file}")
 
