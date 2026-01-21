@@ -1,8 +1,8 @@
 """
-Plotting utilities for OptionCritic training results.
+Plotting utilities for OptionCritic NN training results.
 
 This module provides functions to visualize training results, option usage,
-Q-values, and other metrics from OptionCritic training.
+and other metrics from OptionCritic NN training.
 """
 
 import json
@@ -13,6 +13,7 @@ from typing import Dict, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import Counter, defaultdict
+import torch
 
 # Add project root to Python path
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -33,17 +34,23 @@ def load_training_results(results_file: Path) -> Dict:
         return json.load(f)
 
 
-def load_agent(agent_file: Path) -> Dict:
-    """Load agent state from JSON file
+def load_agent(agent_file: Path, encoder_file: Path) -> Dict:
+    """Load agent state from JSON and encoder from PyTorch file
     
     Args:
         agent_file: Path to agent JSON file
+        encoder_file: Path to encoder PyTorch file
         
     Returns:
-        Dictionary containing agent state
+        Dictionary containing agent state and encoder
     """
     with open(agent_file, 'r') as f:
-        return json.load(f)
+        agent_state = json.load(f)
+    
+    encoder = torch.load(encoder_file, map_location='cpu')
+    agent_state['encoder'] = encoder
+    
+    return agent_state
 
 
 def plot_training_metrics(results: Dict, save_path: Optional[Path] = None, show: bool = True):
@@ -61,7 +68,6 @@ def plot_training_metrics(results: Dict, save_path: Optional[Path] = None, show:
     steps = [e['total_steps'] for e in episodes_data]
     options_used = [e['num_options_used'] for e in episodes_data]
     option_switches = [e['num_options_switches'] for e in episodes_data]
-    completed = [1 if e['terminated'] else 0 for e in episodes_data]
     
     # Create figure with subplots
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))
@@ -111,18 +117,9 @@ def plot_training_metrics(results: Dict, save_path: Optional[Path] = None, show:
     ax.legend()
     ax.grid(True, alpha=0.3)
     
-    # Completion rate
+    # Empty subplot (removed completion rate)
     ax = axes[1, 1]
-    completion_rate = np.convolve(completed, np.ones(10)/10, mode='same')
-    ax.plot(episodes, completion_rate, linewidth=2, color='teal')
-    ax.axhline(y=results['summary']['completion_rate'], color='red', 
-               linestyle='--', label=f'Overall: {results["summary"]["completion_rate"]:.1%}')
-    ax.set_xlabel('Episode')
-    ax.set_ylabel('Completion Rate')
-    ax.set_title('Completion Rate (Moving Average)')
-    ax.set_ylim([0, 1.1])
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+    ax.axis('off')
     
     # Summary statistics
     ax = axes[1, 2]
@@ -282,108 +279,6 @@ def plot_option_usage(results: Dict, save_path: Optional[Path] = None, show: boo
         plt.close()
 
 
-def plot_q_values(agent: Dict, save_path: Optional[Path] = None, show: bool = True, 
-                  max_states: int = 50):
-    """Plot Q-value analysis
-    
-    Args:
-        agent: Agent state dictionary
-        save_path: Optional path to save the figure
-        show: Whether to display the plot
-        max_states: Maximum number of states to display (for readability)
-    """
-    q_omega = np.array(agent['Q_Omega_table'])
-    q_u = np.array(agent['Q_U_table'])
-    
-    n_states, n_options = q_omega.shape
-    n_actions = q_u.shape[2]
-    
-    # Limit states for visualization
-    states_to_plot = min(n_states, max_states)
-    
-    # Create figure
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    fig.suptitle(f'Q-Value Analysis - Episode {agent["episode"]}, Level {agent["level"]}', 
-                 fontsize=16, fontweight='bold')
-    
-    # Q_Omega heatmap (state x option)
-    ax = axes[0, 0]
-    q_omega_plot = q_omega[:states_to_plot, :]
-    im = ax.imshow(q_omega_plot, cmap='viridis', aspect='auto')
-    ax.set_xlabel('Option')
-    ax.set_ylabel('State Index')
-    ax.set_title(f'Q_Omega: State-Option Values (first {states_to_plot} states)')
-    ax.set_xticks(range(n_options))
-    ax.set_xticklabels([f'Opt {i}' for i in range(n_options)])
-    plt.colorbar(im, ax=ax, label='Q-Value')
-    
-    # Q_Omega statistics per option
-    ax = axes[0, 1]
-    option_means = np.mean(q_omega, axis=0)
-    option_stds = np.std(q_omega, axis=0)
-    x_pos = np.arange(n_options)
-    bars = ax.bar(x_pos, option_means, yerr=option_stds, capsize=5, 
-                  color=plt.cm.Set3(np.linspace(0, 1, n_options)), alpha=0.7)
-    ax.set_xlabel('Option')
-    ax.set_ylabel('Mean Q-Value')
-    ax.set_title('Q_Omega: Mean Q-Value per Option')
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels([f'Option {i}' for i in range(n_options)])
-    ax.grid(True, alpha=0.3, axis='y')
-    
-    # Add value labels
-    for i, (bar, mean) in enumerate(zip(bars, option_means)):
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + option_stds[i],
-                f'{mean:.2f}', ha='center', va='bottom', fontsize=9)
-    
-    # Q_U statistics per option-action pair
-    ax = axes[1, 0]
-    q_u_means = np.mean(q_u, axis=0)  # Average over states: (n_options, n_actions)
-    im = ax.imshow(q_u_means, cmap='plasma', aspect='auto')
-    ax.set_xlabel('Action')
-    ax.set_ylabel('Option')
-    ax.set_title('Q_U: Mean State-Option-Action Values')
-    ax.set_xticks(range(n_actions))
-    ax.set_xticklabels([f'Action {i}' for i in range(n_actions)])
-    ax.set_yticks(range(n_options))
-    ax.set_yticklabels([f'Option {i}' for i in range(n_options)])
-    
-    # Add text annotations
-    for i in range(n_options):
-        for j in range(n_actions):
-            text = ax.text(j, i, f'{q_u_means[i, j]:.2f}',
-                         ha="center", va="center", 
-                         color="white" if q_u_means[i, j] < q_u_means.max()/2 else "black",
-                         fontsize=8)
-    
-    plt.colorbar(im, ax=ax, label='Mean Q-Value')
-    
-    # Q-value distribution
-    ax = axes[1, 1]
-    q_omega_flat = q_omega.flatten()
-    q_u_flat = q_u.flatten()
-    
-    ax.hist(q_omega_flat, bins=50, alpha=0.6, label='Q_Omega', color='blue', density=True)
-    ax.hist(q_u_flat, bins=50, alpha=0.6, label='Q_U', color='red', density=True)
-    ax.set_xlabel('Q-Value')
-    ax.set_ylabel('Density')
-    ax.set_title('Q-Value Distribution')
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"Saved plot to {save_path}")
-    
-    if show:
-        plt.show()
-    else:
-        plt.close()
-
-
 def plot_option_sequences(results: Dict, num_episodes: int = 10, 
                          save_path: Optional[Path] = None, show: bool = True):
     """Plot option sequences for selected episodes
@@ -458,22 +353,202 @@ def plot_option_sequences(results: Dict, num_episodes: int = 10,
         plt.close()
 
 
+def plot_encoder_output(agent: Dict, test_image: np.ndarray, 
+                       save_path: Optional[Path] = None, show: bool = True):
+    """Plot encoder output visualization for a test image
+    
+    Args:
+        agent: Agent state dictionary with encoder
+        test_image: Test grayscale image (H, W) or (1, H, W)
+        save_path: Optional path to save the figure
+        show: Whether to display the plot
+    """
+    encoder = agent['encoder']
+    encoder.eval()
+    device = encoder.device
+    
+    # Prepare image - ensure it's (H, W) format for grayscale
+    if test_image.ndim == 2:
+        # Already (H, W) - good
+        pass
+    elif test_image.ndim == 3:
+        if test_image.shape[0] == 1:
+            # (1, H, W) -> (H, W)
+            test_image = test_image.squeeze(0)
+        elif test_image.shape[2] == 1:
+            # (H, W, 1) -> (H, W)
+            test_image = test_image.squeeze(2)
+        else:
+            raise ValueError(f"Expected grayscale image, got shape {test_image.shape}")
+    
+    # Ensure image is 84x84
+    if test_image.shape != (84, 84):
+        h, w = test_image.shape
+        # Use simple resizing with numpy/scipy if available, otherwise use PIL
+        try:
+            from scipy.ndimage import zoom
+            scale_h = 84 / h
+            scale_w = 84 / w
+            test_image = zoom(test_image, (scale_h, scale_w), order=1)
+            test_image = test_image.astype(np.uint8)
+        except ImportError:
+            try:
+                from PIL import Image
+                img = Image.fromarray(test_image)
+                img = img.resize((84, 84), Image.Resampling.LANCZOS)
+                test_image = np.array(img)
+            except ImportError:
+                # Fallback: simple numpy-based resizing
+                from scipy import ndimage
+                scale_h = 84 / h
+                scale_w = 84 / w
+                test_image = ndimage.zoom(test_image, (scale_h, scale_w), order=1)
+                test_image = test_image.astype(np.uint8)
+        print(f"Resized image from {h}x{w} to {test_image.shape}")
+    
+    # Prepare as numpy array with channel dimension: (1, H, W) for grayscale
+    # The encoder expects (channels, H, W) format
+    image_np = test_image[np.newaxis, :, :].astype(np.float32)  # (1, 84, 84)
+    
+    with torch.no_grad():
+        # Get encoder features using encode_state (which handles the conversion)
+        features = encoder.encode_state(image_np)  # (1, n_neurons)
+        features = features.squeeze(0).cpu().numpy()  # (n_neurons,)
+        
+        # Get option probabilities - pass numpy array so it uses encode_state
+        option_logits = encoder.pi_options(image_np)  # (1, n_options)
+        option_probs = torch.softmax(option_logits, dim=-1).squeeze(0).cpu().numpy()  # (n_options,)
+        
+        # Get termination probabilities
+        term_probs = encoder.beta(image_np)  # (1, n_options)
+        term_probs = term_probs.squeeze(0).cpu().numpy()  # (n_options,)
+        
+        # Get action probabilities for each option
+        action_probs = encoder.intra_options(image_np)  # (n_options, n_actions)
+        action_probs = action_probs.cpu().numpy()  # (n_options, n_actions)
+    
+    # Create figure
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+    fig.suptitle('Encoder Output Visualization', fontsize=16, fontweight='bold')
+    
+    # Original image
+    ax = axes[0, 0]
+    ax.imshow(test_image, cmap='gray')
+    ax.set_title(f'Input Grayscale Image ({test_image.shape[0]}x{test_image.shape[1]})')
+    ax.axis('off')
+    
+    # Encoder features (first 100 features as bar chart)
+    ax = axes[0, 1]
+    n_features_to_show = min(100, len(features))
+    ax.bar(range(n_features_to_show), features[:n_features_to_show], alpha=0.7)
+    ax.set_xlabel('Feature Index')
+    ax.set_ylabel('Feature Value')
+    ax.set_title(f'Encoder Features (first {n_features_to_show} of {len(features)})')
+    ax.grid(True, alpha=0.3, axis='y')
+    
+    # Option probabilities
+    ax = axes[0, 2]
+    n_options = len(option_probs)
+    bars = ax.bar(range(n_options), option_probs, color=plt.cm.Set3(np.linspace(0, 1, n_options)))
+    ax.set_xlabel('Option')
+    ax.set_ylabel('Probability')
+    ax.set_title('Option Selection Probabilities')
+    ax.set_xticks(range(n_options))
+    ax.set_xticklabels([f'Opt {i}' for i in range(n_options)])
+    ax.set_ylim([0, 1])
+    ax.grid(True, alpha=0.3, axis='y')
+    # Add value labels
+    for i, (bar, prob) in enumerate(zip(bars, option_probs)):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height,
+                f'{prob:.3f}', ha='center', va='bottom', fontsize=9)
+    
+    # Termination probabilities
+    ax = axes[1, 0]
+    bars = ax.bar(range(n_options), term_probs, color=plt.cm.Set3(np.linspace(0, 1, n_options)))
+    ax.set_xlabel('Option')
+    ax.set_ylabel('Termination Probability')
+    ax.set_title('Option Termination Probabilities')
+    ax.set_xticks(range(n_options))
+    ax.set_xticklabels([f'Opt {i}' for i in range(n_options)])
+    ax.set_ylim([0, 1])
+    ax.grid(True, alpha=0.3, axis='y')
+    # Add value labels
+    for i, (bar, prob) in enumerate(zip(bars, term_probs)):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height,
+                f'{prob:.3f}', ha='center', va='bottom', fontsize=9)
+    
+    # Action probabilities heatmap
+    ax = axes[1, 1]
+    n_actions = action_probs.shape[1]
+    im = ax.imshow(action_probs, cmap='viridis', aspect='auto')
+    ax.set_xlabel('Action')
+    ax.set_ylabel('Option')
+    ax.set_title('Action Probabilities per Option')
+    ax.set_xticks(range(n_actions))
+    ax.set_xticklabels([f'Action {i}' for i in range(n_actions)])
+    ax.set_yticks(range(n_options))
+    ax.set_yticklabels([f'Option {i}' for i in range(n_options)])
+    # Add text annotations
+    for i in range(n_options):
+        for j in range(n_actions):
+            text = ax.text(j, i, f'{action_probs[i, j]:.2f}',
+                         ha="center", va="center", 
+                         color="white" if action_probs[i, j] < action_probs.max()/2 else "black",
+                         fontsize=8)
+    plt.colorbar(im, ax=ax, label='Probability')
+    
+    # Feature statistics
+    ax = axes[1, 2]
+    ax.axis('off')
+    stats_text = f"""
+    Encoder Statistics:
+    
+    Feature Dimension: {len(features)}
+    Feature Mean: {features.mean():.4f}
+    Feature Std: {features.std():.4f}
+    Feature Min: {features.min():.4f}
+    Feature Max: {features.max():.4f}
+    
+    Image Shape: {test_image.shape}
+    Image Size: {test_image.shape[0]}x{test_image.shape[1]}
+    """
+    ax.text(0.1, 0.5, stats_text, fontsize=11, family='monospace',
+            verticalalignment='center', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Saved plot to {save_path}")
+    
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+
 def main():
     """Main entry point with command-line argument parsing"""
-    parser = argparse.ArgumentParser(description="Plot OptionCritic training results")
+    parser = argparse.ArgumentParser(description="Plot OptionCritic NN training results")
     
     parser.add_argument("--results_file", type=str, required=True,
                        help="Path to training results JSON file")
     parser.add_argument("--agent_file", type=str, default=None,
-                       help="Path to agent JSON file (for Q-value plots)")
+                       help="Path to agent JSON file (for encoder visualization)")
+    parser.add_argument("--encoder_file", type=str, default=None,
+                       help="Path to encoder PyTorch file (for encoder visualization)")
     parser.add_argument("--output_dir", type=str, default="plots",
                        help="Directory to save plots")
     parser.add_argument("--no-show", action="store_true",
                        help="Don't display plots (only save)")
     parser.add_argument("--plots", type=str, nargs="+", 
-                       choices=['metrics', 'options', 'qvalues', 'sequences', 'all'],
+                       choices=['metrics', 'options', 'sequences', 'encoder', 'all'],
                        default=['all'],
                        help="Which plots to generate")
+    parser.add_argument("--test_image", type=str, default=None,
+                       help="Path to test grayscale image for encoder visualization (optional)")
     
     args = parser.parse_args()
     
@@ -496,7 +571,9 @@ def main():
     # Generate plots
     plots_to_generate = args.plots
     if 'all' in plots_to_generate:
-        plots_to_generate = ['metrics', 'options', 'qvalues', 'sequences']
+        plots_to_generate = ['metrics', 'options', 'sequences']
+        if args.agent_file and args.encoder_file:
+            plots_to_generate.append('encoder')
     
     if 'metrics' in plots_to_generate:
         print("Generating training metrics plot...")
@@ -514,23 +591,6 @@ def main():
             show=show
         )
     
-    if 'qvalues' in plots_to_generate:
-        if args.agent_file:
-            agent_file = Path(args.agent_file)
-            if agent_file.exists():
-                print(f"Loading agent from {agent_file}...")
-                agent = load_agent(agent_file)
-                print("Generating Q-value analysis plot...")
-                plot_q_values(
-                    agent,
-                    save_path=output_dir / f"q_values_episode_{agent['episode']}_level_{level}.png",
-                    show=show
-                )
-            else:
-                print(f"Warning: Agent file not found: {agent_file}. Skipping Q-value plot.")
-        else:
-            print("Warning: No agent file provided. Skipping Q-value plot.")
-    
     if 'sequences' in plots_to_generate:
         print("Generating option sequences plot...")
         plot_option_sequences(
@@ -539,6 +599,46 @@ def main():
             save_path=output_dir / f"option_sequences_level_{level}.png",
             show=show
         )
+    
+    if 'encoder' in plots_to_generate:
+        if args.agent_file and args.encoder_file:
+            agent_file = Path(args.agent_file)
+            encoder_file = Path(args.encoder_file)
+            if agent_file.exists() and encoder_file.exists():
+                print(f"Loading agent from {agent_file} and encoder from {encoder_file}...")
+                agent = load_agent(agent_file, encoder_file)
+                
+                # Generate test image if not provided
+                if args.test_image:
+                    try:
+                        import imageio
+                        test_image = imageio.imread(args.test_image)
+                        if test_image.ndim == 3:
+                            # Convert RGB to grayscale
+                            test_image = np.mean(test_image, axis=2)
+                    except ImportError:
+                        print("Warning: imageio not available. Using random test image instead.")
+                        img_size = agent.get('img_size', [84, 84])
+                        test_image = np.random.rand(img_size[0], img_size[1]) * 255
+                        test_image = test_image.astype(np.uint8)
+                else:
+                    # Create a simple test grayscale image
+                    print("No test image provided, generating simple grayscale test image...")
+                    img_size = agent.get('img_size', [84, 84])
+                    test_image = np.random.rand(img_size[0], img_size[1]) * 255
+                    test_image = test_image.astype(np.uint8)
+                
+                print("Generating encoder output visualization...")
+                plot_encoder_output(
+                    agent,
+                    test_image,
+                    save_path=output_dir / f"encoder_output_level_{level}.png",
+                    show=show
+                )
+            else:
+                print(f"Warning: Agent or encoder file not found. Skipping encoder visualization.")
+        else:
+            print("Warning: Agent and encoder files required for encoder visualization.")
     
     print(f"\nPlots saved to {output_dir}")
 

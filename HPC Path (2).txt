@@ -1,0 +1,56 @@
+--------------------------
+# Path to HPC:
+
+/work3/s190464
+
+--------------------------
+# Install enviroment module:
+
+pip install virtualenv
+
+--------------------------
+# Change Python Version
+
+module load python3/3.12.11
+
+--------------------------
+# Create Virtual Enviroment
+
+python3 -m venv .venv
+
+--------------------------
+# Activate Virtual Enviroment
+
+source .venv/bin/activate
+
+---------------------------
+
+pip install -r requirements.txt
+
+--------------------------
+# Check the usage command:
+
+getquota_work3.sh
+
+--------------------------
+# Check Jobs
+
+bstat
+
+--------------------------
+# Kill Specific job
+
+bkill <jobid>
+
+--------------------------
+# Run Job
+
+bsub < name_of_file.sh
+
+--------------------------
+# Filezilla login:
+
+host: transfer.gbar.dtu.dk
+username: <studynumber> (incl. s)
+password: dtu login
+port: 22
