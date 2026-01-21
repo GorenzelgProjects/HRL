@@ -24,16 +24,12 @@
 
 ### wall time limit - the maximum time the job will run. Currently 2.5 hours. 
 
-#BSUB -W 02:30
-
-##BSUB -u s204090@dtu.dk
-### -- send notification at start -- 
-#BSUB -B 
-### -- send notification at completion -- 
-#BSUB -N 
 
 
-# end of BSUB options          
+
+
+
+#BSUB -W 12:00        
 
 
 # load the correct scipy module and python
@@ -47,7 +43,7 @@ module load cuda/11.8
 source .venv/bin/activate
 
 # Change to project directory (adjust path as needed)
-cd $LS_SUBCWD || cd /work3/s190464/HRL || cd ~/Documents/HRL
+cd $LS_SUBCWD || cd /zhome/db/f/168045/HRL 
 
 # Run training and testing
 python main.py experiment=option_critic_nn_example environment=thin_ice models=option_critic_nn experiment.levels=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21] experiment.render=false experiment.run_training=true experiment.run_testing=true experiment.cuda=true models.option_critic_nn.n_options=2 models.option_critic_nn.epsilon=0.9 models.option_critic_nn.epsilon_decay=0.998 models.option_critic_nn.epsilon_min=0.05 models.option_critic_nn.gamma=0.99 models.option_critic_nn.lr=0.00025 models.option_critic_nn.beta_reg=0.01 models.option_critic_nn.entropy_reg=0.01 models.option_critic_nn.temperature=0.01 models.option_critic_nn.n_episodes=1000 models.option_critic_nn.n_steps=1000 models.option_critic_nn.optimizer_name=RMSProp environment.env_specific_settings.use_image_state_representation=true environment.env_specific_settings.use_coord_state_representation=false

@@ -254,16 +254,12 @@ fi
 
 ### wall time limit - the maximum time the job will run. Currently 2.5 hours. 
 
-#BSUB -W 02:30
-
-##BSUB -u s204090@dtu.dk
-### -- send notification at start -- 
-#BSUB -B 
-### -- send notification at completion -- 
-#BSUB -N 
 
 
-# end of BSUB options          
+
+
+
+#BSUB -W 12:00        
 
 
 # load the correct scipy module and python
@@ -277,7 +273,7 @@ module load cuda/11.8
 source .venv/bin/activate
 
 # Change to project directory (adjust path as needed)
-cd $LS_SUBCWD || cd /work3/s190464/HRL || cd ~/Documents/HRL
+cd $LS_SUBCWD || cd /zhome/db/f/168045/HRL 
 
 # Run training and testing
 {pythonCommand}
