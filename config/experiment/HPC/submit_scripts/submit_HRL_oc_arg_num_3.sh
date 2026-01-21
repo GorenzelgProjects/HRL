@@ -24,16 +24,12 @@
 
 ### wall time limit - the maximum time the job will run. Currently 2.5 hours. 
 
-#BSUB -W 02:30
-
-##BSUB -u s204090@dtu.dk
-### -- send notification at start -- 
-#BSUB -B 
-### -- send notification at completion -- 
-#BSUB -N 
 
 
-# end of BSUB options          
+
+
+
+#BSUB -W 12:00        
 
 
 # load the correct scipy module and python
@@ -47,7 +43,7 @@ module load cuda/11.8
 source .venv/bin/activate
 
 # Change to project directory (adjust path as needed)
-cd $LS_SUBCWD || cd /work3/s190464/HRL || cd ~/Documents/HRL
+cd $LS_SUBCWD || cd /zhome/db/f/168045/HRL 
 
 # Run training and testing
 python main.py experiment=option_critic_example environment=four_rooms models=option_critic experiment.levels=[1] experiment.render=false experiment.run_training=true experiment.run_testing=true models.option_critic.n_options=8 models.option_critic.epsilon=0.9 models.option_critic.epsilon_decay=0.998 models.option_critic.epsilon_min=0.05 models.option_critic.gamma=0.99 models.option_critic.alpha_critic=0.5 models.option_critic.alpha_theta=0.25 models.option_critic.alpha_upsilon=0.25 models.option_critic.temperature=0.01 models.option_critic.n_episodes=1000 models.option_critic.n_steps=1000

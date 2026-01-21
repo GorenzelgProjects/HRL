@@ -19,7 +19,7 @@
 #BSUB -R "select[gpu32gb]"
 
 # walltime (adjust as needed)
-#BSUB -W 02:30
+
 
 # output and error files
 #BSUB -o config/experiment/HPC/output_%J.out 
@@ -35,7 +35,7 @@ module load cuda/11.8
 source .venv/bin/activate
 
 # Change to project directory (adjust path as needed)
-cd $LS_SUBCWD || cd /work3/s190464/HRL || cd ~/Documents/HRL
+cd $LS_SUBCWD || cd /zhome/db/f/168045/HRL 
 
 # Run experiment (example - adjust as needed)
 # For option_critic:

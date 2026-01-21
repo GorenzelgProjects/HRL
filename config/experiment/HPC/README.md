@@ -130,4 +130,4 @@ All submission scripts automatically generate plots after training completes:
 
 - Make sure your virtual environment is set up on HPC with all required dependencies
 - Adjust the project path in `createSubmitScripts.py` if your HPC directory structure differs
-- The scripts assume the project is accessible at `/work3/s190464/HRL` or `~/Documents/HRL` - modify as needed
+- The scripts assume the project is accessible at `/zhome/db/f/168045/HRL` or `~/Documents/HRL` - modify as needed
