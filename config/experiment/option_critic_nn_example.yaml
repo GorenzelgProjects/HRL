@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+  - override /environment: thin_ice
+  - override /models: [option_critic_nn]
+  - _self_
+
+experiment:
+  name: option_critic_${timestamp}
+  levels: [21]
+  cuda: true
+
+environment:
+  env_specific_settings:
+    use_coord_state_representation: false
+    use_image_state_representation: true

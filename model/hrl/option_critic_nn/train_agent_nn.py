@@ -24,8 +24,6 @@ if str(project_root) not in sys.path:
 from environment.thin_ice.thin_ice_env import ThinIceEnv
 from model.hrl.option_critic_nn.oc_network import Encoder
 from model.hrl.option_critic_nn.option_critic_nn import OptionCritic
-from model.hrl.option_critic.state_manager import StateManager
-
 
 def save_agent(agent: OptionCritic, save_dir: Path, episode: int, level: int):
     """Save the trained agent to disk
@@ -158,27 +156,33 @@ def save_training_results(results: List[Dict], save_dir: Path, level: int):
 
 def train_option_critic_nn(
     env: ThinIceEnv,
+    img_size: list[int, int],
     level: int = 1,
     num_episodes: int = 100,
     n_options: int = 4,
     n_states: int = 1000,
     n_actions: int = 4,
+    n_filters: list[int] = [32, 64, 64],
+    conv_sizes: list[int] = [8, 4, 3],
+    strides: list[int] = [4, 2, 1],
+    n_neurons: int = 512,
     optimizer_name: str = "RMSProp",
     gamma: float = 0.99,
-    alpha_critic: float = 0.5,
-    alpha_theta: float = 0.25,
-    alpha_upsilon: float = 0.25,
+    lr: float = 0.00025,
     epsilon: float = 0.9,
     epsilon_decay: float = 0.995,
     epsilon_min: float = 0.01,
+    beta_reg: float = 0.01,
+    entropy_reg: float = 0.01,
     n_steps: int = 1000,
     temperature: float = 1.0,
     save_frequency: int = 10,
     output_dir: str = "training_output",
-    state_mapping_dir: str = "environment/state_mapping",
     verbose: bool = True,
     render: bool = False,
     delay: bool = 0.05,
+    max_history: int = 10000,
+    cuda: bool = False
 ) -> Tuple[OptionCritic, List[Dict]]:
     """Train OptionCritic agent for specified number of episodes
 
@@ -204,6 +208,15 @@ def train_option_critic_nn(
     Returns:
         Tuple of (trained agent, list of episode results)
     """
+    # Set up device
+    if torch.cuda.is_available() and cuda:
+        device = torch.device("cuda")
+    elif torch.mps.is_available() and cuda:
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    logging.info(f"Running on {device}")
+    
     # Setup directories
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -211,40 +224,49 @@ def train_option_critic_nn(
     save_dir = output_path / "agents"
     results_dir = output_path / "results"
 
-    # Create state manager
-    state_manager = StateManager(Path(state_mapping_dir))
-
     # Initialize the encoder
+    encoder = Encoder(image_size=img_size,
+                      n_filters=n_filters,
+                      conv_sizes=conv_sizes,
+                      strides=strides,
+                      n_neurons=n_neurons,
+                      n_options=n_options,
+                      n_actions=n_actions,
+                      temperature=temperature,
+                      device=device)
+    encoder.to(device)
     
     if optimizer_name == "RMSProp":
-        optimizer = torch.optim.RMSprop()
+        optimizer = torch.optim.RMSprop(encoder.parameters(),
+                                        lr=lr)
+    else:
+        raise ValueError("Cannot identify optimizer")
     
     agent = OptionCritic(
         n_states=n_states,
         n_actions=n_actions,
         n_options=n_options,
+        encoder=encoder,
         gamma=gamma,
-        alpha_critic=alpha_critic,
-        alpha_theta=alpha_theta,
-        alpha_upsilon=alpha_upsilon,
         epsilon=epsilon,
+        beta_reg=beta_reg,
+        entropy_reg=entropy_reg,
         n_steps=n_steps,
-        state_manager=state_manager,
+        downsample=img_size,
+        device=device
     )
 
     # Training loop
     all_results = []
     pbar = tqdm.tqdm(range(1, num_episodes + 1))
     for episode in pbar:
-        # logging.info(f"Episode {episode}/{num_episodes}")
-
         # Train one episode
         episode_stats = agent.train(
             env,
-            temperature,
-            save_mapping=True,
+            optimizer=optimizer,
             render=render if episode == num_episodes - 1 else False,
-            delay=delay
+            delay=delay,
+            max_history=max_history
         )
         
         episode_stats["episode"] = episode

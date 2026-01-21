@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 class Encoder(nn.Module):
     def __init__(self, 
-                 image_size: torch.Tensor[int, int],
+                 image_size: list[int, int],
                  n_filters: list[int], 
                  conv_sizes: list[int], 
                  strides: list[int],
@@ -23,10 +23,10 @@ class Encoder(nn.Module):
         self.temperature = temperature
         
         # Pre-computed number of in_features of the final dense layer
-        self.lin_features = self._precompute_linear_input_size(image_size, conv_sizes, strides) * n_filters[-1]
+        self.lin_features = self._precompute_linear_input_size(torch.tensor(image_size), conv_sizes, strides) * n_filters[-1]
         
         # Encoding state features
-        self.conv1 = nn.Conv2d(in_channels=4, 
+        self.conv1 = nn.Conv2d(in_channels=1, # Assumes gray-scaled images
                                out_channels=n_filters[0], 
                                kernel_size=(conv_sizes[0], conv_sizes[0]), 
                                stride=strides[0])
@@ -61,7 +61,7 @@ class Encoder(nn.Module):
         x = self.relu(x)
         x = self.conv3(x)
         x = self.relu(x)
-        x = torch.flatten(x)
+        x = x.view(x.size(0), -1)
         x = self.linear(x)
         x = self.relu(x)
         
@@ -73,7 +73,7 @@ class Encoder(nn.Module):
         if state_tensor.ndim < 3 or state_tensor.ndim > 4:
             raise ValueError(f"The state should be of shape (batch_size, 4 (rgba), img_size, img_size). ndim = {state_tensor.ndim}")
         elif state_tensor.ndim == 3:
-            state_tensor.unsqueeze(0)
+            state_tensor = state_tensor.unsqueeze(0)
         
         # Encode the state
         features = self.forward(state_tensor)
@@ -106,14 +106,15 @@ class Encoder(nn.Module):
         
         return F.softmax(logits / self.temperature, dim=-1)
     
-    def _precompute_linear_input_size(img_sizes: torch.Tensor[int, int],
+    def _precompute_linear_input_size(self,
+                                      img_sizes: torch.Tensor,
                                       conv_sizes: list[int],
-                                      strides: list[int]) -> torch.Tensor[int, int]:
+                                      strides: list[int]) -> int:
         # NOTE: Assumes that the conv_size and stride 
         # as applied the same in both height and width dimension
         out_size = img_sizes
         for conv_size, stride in zip(conv_sizes, strides):
-            out_size = torch.ceil((out_size - conv_size) / stride)
+            out_size = torch.ceil((out_size - conv_size + 1) / stride)
         
-        return out_size
+        return int(out_size[0].item() * out_size[1].item())
     

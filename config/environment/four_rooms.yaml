@@ -4,6 +4,7 @@ defaults:
 env_name: four_rooms
 
 level_list: [1]
+img_size: [84, 84]
 
 env_specific_settings:
   settings: None

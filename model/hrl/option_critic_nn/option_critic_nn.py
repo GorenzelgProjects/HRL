@@ -5,15 +5,14 @@ import copy
 
 import time
 import torch
-import torch.nn.functional as F
 import torch.distributions as td
 import numpy as np
 from loguru import logger as logging
 
 from environment.thin_ice.thin_ice_env import ThinIceEnv
 from model.hrl.option_critic_nn.oc_network import Encoder
+from model.hrl.option_critic_nn.replay_buffer import ReplayBuffer
 
-from typing import Optional
 from collections import defaultdict
 
 
@@ -25,11 +24,12 @@ class OptionCritic:
         n_options: int,
         encoder: Encoder,
         gamma: float = 0.99,
-        alpha_critic: float = 0.5,
-        alpha_theta: float = 0.25,
-        alpha_upsilon: float = 0.25,
         epsilon: float = 0.1,
+        beta_reg: float = 0.01,
+        entropy_reg: float = 0.01,
         n_steps: int = 1000,
+        downsample: list[int, int] = [84, 84],
+        device: torch.device = torch.device("cpu")
     ):
         """The class for the OptionCritic architecture
 
@@ -59,12 +59,18 @@ class OptionCritic:
             raise ValueError("A positive number of options must be set")
         self.n_options = n_options
         
-        self.oc_prime = copy.deepcopy(self) # For more stable Q-values
+        self.encoder_prime = copy.deepcopy(self.encoder) # For more stable Q-values
+        self.encoder_prime.to(device)
         
         self.gamma = gamma # Discount factor
         self.epsilon = epsilon  # Exploration/Exploitation param
+        self.beta_reg = beta_reg # Termination regularization parameter
+        self.entropy_reg = entropy_reg # Entropy regularization parameter
 
         self.n_steps = n_steps
+        self.downsample_size = downsample
+        
+        self.device = device
 
     def choose_new_option(self, state: np.ndarray | torch.Tensor) -> int:
         """Chooses a new option according to an epsilon-greedy strategy
@@ -90,16 +96,21 @@ class OptionCritic:
         q_u = self.encoder.intra_options(state)[option_idx]
         action_distribution = td.Categorical(probs = q_u)
         
-        action = action_distribution.sample().item()
+        action = action_distribution.sample()
         log_prob = action_distribution.log_prob(action)
         entropy = action_distribution.entropy()
         
-        return action, log_prob, entropy
+        return action.item(), log_prob, entropy
 
     def train(self, 
               env: ThinIceEnv, 
               optimizer: torch.optim,
-              render: bool = False, delay: float = 0.02
+              render: bool = False, 
+              delay: float = 0.02,
+              max_history: int = 10000,
+              batch_size: int = 32,
+              update_freq: int = 4,
+              freeze_interval: int = 200
     ) -> tuple[list, dict[list]]:
         """Train the Optic-Critic for a maximum of n_steps
 
@@ -122,12 +133,12 @@ class OptionCritic:
                 - "terminated": Whether the episode terminated with a win,
                 - "truncated": Whether an error happened, terminating the game preemptively,
         """
+        buffer = ReplayBuffer(max_history)
+        
         # Get initial state
-        obs, info = env.reset()
+        state, info = env.reset()
         level = info["level"]
-
-        state = self.encoder(obs)
-
+        
         # Store option and action sequence
         option_sequence = []
         action_sequence = defaultdict(lambda: defaultdict(list))
@@ -152,37 +163,41 @@ class OptionCritic:
                 break
 
             action, log_prob, entropy = self.choose_action(state, option)
-            action_sequence[str(option.idx)][option_switches].append(action)
+            action_sequence[str(option)][option_switches].append(action)
             flat_action_sequence.append(action)  # Also save in flat format for replay
             
             new_state, reward, terminated, truncated, _ = env.step(action)
+            buffer.push(state, option, reward, new_state, terminated)
             total_reward += reward
-
-            # Options evaluation
-            critic_loss = self.critic_loss(
-                state, reward, new_state, option, action, terminated
-                )
             
-            # Options improvement
-            actor_loss = self.actor_loss(state,
-                                         reward,
-                                         new_state,
-                                         option,
-                                         log_prob,
-                                         entropy,
-                                         terminated)
-
-            loss = critic_loss + actor_loss
+            if len(buffer) > batch_size:
+                # Options improvement
+                actor_loss = self.actor_loss(state,
+                                            reward,
+                                            new_state,
+                                            option,
+                                            log_prob,
+                                            entropy,
+                                            terminated)
+                loss = actor_loss
+                
+                if step % update_freq == 0:
+                    data_batch = buffer.sample(batch_size)
+                    critic_loss = self.critic_loss(data_batch)
+                    loss += critic_loss                    
             
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                if step % freeze_interval == 0:
+                    self.encoder_prime.load_state_dict(self.encoder.state_dict())
             
             # Pick new option if the previous terminates
-            termination_prob = self.encoder.beta(new_state).detach()
+            termination_prob = self.encoder.beta(new_state)[:, option].detach()
             if torch.rand(1).item() < termination_prob:
                 option = self.choose_new_option(new_state)
-                option_sequence.append(option.idx)
+                option_sequence.append(option)
                 option_switches += 1
 
             state = new_state
@@ -209,30 +224,24 @@ class OptionCritic:
 
     def actor_loss(
         self,
-        state: int,
+        state: np.ndarray | torch.Tensor,
         reward: float,
-        new_state: int,
+        new_state: np.ndarray | torch.Tensor,
         option: int,
         log_prob: float,
         entropy: float,
         terminated: bool
     ) -> None:
-        """Implements the option evaluation from Algorithm 1: Option-critic with tabular intra-option Q-learning
-
-        Args:
-            state_idx (int): The index of the state
-            reward (float): The reward for going from state to new_state
-            new_state_idx (int): The index of the new state
-            option (Option): The current selected option
-            action (int): The action that was just taken
-            terminated (bool): Whether the episode has terminated
-            temperature (float, optional): The logit sensitivity
-        """
-        beta_t = self.encoder.beta(state)[option]
-        beta_t_plus_1 = self.encoder.beta(state)[option].detach()
+        """Implements the actor loss (akin to option improvement)"""
+        s = self.encoder.encode_state(state)
+        new_s = self.encoder.encode_state(new_state)
+        new_s_prime = self.encoder_prime.encode_state(new_state)
         
-        Q_Omega_t = self.encoder.pi_options(state).detach()
-        Q_Omega_t_plus_1 = self.oc_prime.encoder.pi_options(new_state)[option].detach()
+        beta_t = self.encoder.beta(s)[:, option]
+        beta_t_plus_1 = self.encoder.beta(new_s)[:, option].detach()
+        
+        Q_Omega_t = self.encoder.pi_options(s).detach().squeeze()
+        Q_Omega_t_plus_1 = self.encoder_prime.pi_options(new_s_prime).detach().squeeze()
         
         # Target update (no backprop)
         g_t = reward + (1 - terminated) * self.gamma * \
@@ -253,32 +262,32 @@ class OptionCritic:
 
     def critic_loss(
         self,
-        state: np.ndarray | torch.Tensor,
-        reward: float,
-        new_state: np.ndarray | torch.Tensor,
-        option: int,
-        terminated: bool
+        data_batch
     ) -> None:
-        """Implements the options improvement from Algorithm 1: Option-critic with tabular intra-option Q-learning
-
-        Args:
-            state_idx (int): The index of the state
-            new_state_idx (int): The index of the new state
-            option (Option): The currently selected option
-            action (int): The action just taken
-            temperature (float): Hyperparameter for logit calculation sensitivity
+        """Implements the critic loss from algorithm 1
         """
-        Q_Omega_t = self.encoder.pi_options(state)
-        Q_Omega_t_plus_1 = self.oc_prime.encoder.pi_options(new_state) # Using the copied network for stability
+        states, options, rewards, new_states, terminates = data_batch
         
-        beta_t_plus_1 = self.encoder.beta(new_state)[option]
+        batch_idx = torch.arange(len(options)).long()
+        options   = torch.LongTensor(options).to(self.device)
+        rewards   = torch.FloatTensor(rewards).to(self.device)
+        masks     = 1 - torch.FloatTensor(terminates).to(self.device)
+        
+        s = self.encoder.encode_state(states).squeeze(0)
+        Q_Omega_t = self.encoder.pi_options(s)
+        
+        new_s_prime = self.encoder_prime.encode_state(new_states).squeeze(0)
+        Q_Omega_t_plus_1 = self.encoder_prime.pi_options(new_s_prime) # Using the copied network for stability
+        
+        new_s = self.encoder.encode_state(new_states).squeeze(0)
+        beta_t_plus_1 = self.encoder.beta(new_s).detach()[batch_idx, options]
         
         # Estimate Q_U with g_t
-        g_t = reward + (1 - terminated) * self.gamma * \
-            ((1 - beta_t_plus_1) * Q_Omega_t_plus_1[option] + \
+        g_t = rewards + masks * self.gamma * \
+            ((1 - beta_t_plus_1) * Q_Omega_t_plus_1[batch_idx, options] + \
                 beta_t_plus_1 * Q_Omega_t_plus_1.max(dim=-1)[0])
         
         # Get the TD error: Q_Omega - Q_U
-        td_err = (Q_Omega_t - g_t)**2
+        td_err = torch.mean((Q_Omega_t[batch_idx, options] - g_t.detach())**2)
         
         return td_err

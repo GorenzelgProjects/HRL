@@ -75,6 +75,7 @@ class ThinIceEnv(gym.Env):
         reward_config: Optional[Dict] = None,
         generate_water: bool = True,
         use_coord_state_representation: bool = False,
+        use_image_state_representation: bool = False
     ):
         """
         Initialize the Thin Ice environment.
@@ -86,6 +87,8 @@ class ThinIceEnv(gym.Env):
             reward_config: Optional dict with reward function parameters
         """
         super().__init__()
+        
+        self.render_surface = pg.Surface((WIDTH, HEIGHT))  # for RL
 
         self.level = level
         self.render_mode = render_mode
@@ -163,6 +166,7 @@ class ThinIceEnv(gym.Env):
         self.settings = {
             "generate_water": generate_water,
             "use_coord_state_representation": use_coord_state_representation,
+            "use_image_state_representation": use_image_state_representation
         }
 
         # Grid dimensions
@@ -475,6 +479,38 @@ class ThinIceEnv(gym.Env):
                 self.game.canTeleport,
             ]
         )
+    
+    def _get_obs_as_img(self) -> np.ndarray:
+        surface = self.render_surface
+        
+        surface.fill(BGCOLOR)
+
+        if self.all_sprites:
+            self.all_sprites.draw(surface)
+
+        if self.updating_block_group:
+            self.updating_block_group.draw(surface)
+
+        if self.score_sprites:
+            self.score_sprites.draw(surface)
+
+        # Optional debug border
+        pg.draw.rect(surface, (255, 255, 255), (0, 0, WIDTH, HEIGHT), 2)
+        
+        # Downsample to (84, 84) # NOTE HARDCODED
+        small_surface = pg.transform.scale(self.render_surface, (84, 84))
+        
+        # pygame gives (W, H, C)
+        obs = pg.surfarray.array3d(small_surface)
+
+        # Convert to (C, H, W) – what ML frameworks expect
+        obs = obs.transpose(2, 1, 0)
+        
+        # Gray-scale
+        obs = obs.mean(axis=0, keepdims=True)  # grayscale
+        obs = obs.astype(np.float32) / 255.0
+        
+        return obs
 
     def _get_obs(self) -> np.ndarray:
         """
@@ -594,9 +630,16 @@ class ThinIceEnv(gym.Env):
         self.game.hasKey = self.has_key
         self.game.canTeleport = self.can_teleport
 
+        # Update sprites (including player animation)
+        self.all_sprites.update()
+        self.score_sprites.update()  # Update player sprite
+        self.updating_block_group.update()
+
         # Get initial observation
         if self.settings["use_coord_state_representation"]:
             obs = self._get_coord_obs()
+        elif self.settings["use_image_state_representation"]:
+            obs = self._get_obs_as_img()
         else:
             obs = self._get_obs()
         info = self._get_info()
@@ -775,6 +818,8 @@ class ThinIceEnv(gym.Env):
         # Get new observation
         if self.settings["use_coord_state_representation"]:
             obs = self._get_coord_obs()
+        elif self.settings["use_image_state_representation"]:
+            obs = self._get_obs_as_img()
         else:
             obs = self._get_obs()
         info = self._get_info()
