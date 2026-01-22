@@ -2,6 +2,9 @@
 # and https://github.com/theophilegervet/options-hierarchical-rl/blob/master/implementations/option_critic.ipynb
 
 import time
+from typing import TYPE_CHECKING, Optional, Callable
+from collections import defaultdict
+
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -9,14 +12,13 @@ from loguru import logger as logging
 
 from environment.thin_ice.thin_ice_env import ThinIceEnv
 from model.hrl.option_critic.state_manager import StateManager
-from model.hrl.option_critic.intrinsic_rewards.base_intrinsic import BaseIntrinsic
 
-from typing import Optional
-from collections import defaultdict
+if TYPE_CHECKING:
+    from model.hrl.option_critic.intrinsic_rewards.intrinsic_composer import IntrinsicComposer
 
 
 class Option:
-    def __init__(self, idx: int, n_states: int, n_actions: int) -> None:
+    def __init__(self, idx: int, n_states: int, n_actions: int, intrinsic_composer: Optional["IntrinsicComposer"] = None) -> None:
         """The class containing attributes and methods for an Option
 
         Args:
@@ -43,6 +45,9 @@ class Option:
                 n_states,
             )
         )  # Termination parameters
+        
+        # Used for option-specific intrinsic rewards
+        self.intrinsic_composer = intrinsic_composer
 
     def pi(self, state_idx: int, temperature: Optional[float] = 1.0) -> torch.Tensor:
         """The option policy for a particular state
@@ -125,7 +130,7 @@ class OptionCritic:
         epsilon_decay: int = 1e6,
         n_steps: int = 1000,
         state_manager: Optional[StateManager] = None,
-        intrinsic_rewarder: Optional[BaseIntrinsic] = None,
+        intrinsic_composer: Optional[Callable[None, "IntrinsicComposer"]] = None,
     ):
         """The class for the OptionCritic architecture
 
@@ -152,7 +157,7 @@ class OptionCritic:
         if n_options <= 0:
             raise ValueError("A positive number of options must be set")
         self.n_options = n_options
-        self.options = [Option(idx, n_states, n_actions) for idx in range(n_options)]
+        self.options = [Option(idx, n_states, n_actions, None) for idx in range(n_options)]
 
         self.Q_Omega_table = torch.zeros((n_states, n_options))  # Option values
         self.Q_U_table = torch.zeros(
@@ -174,7 +179,8 @@ class OptionCritic:
         
 
         self.state_manager = state_manager
-        self.intrinsic_rewarder = intrinsic_rewarder
+        
+        self.intrinsic_composer = intrinsic_composer() if intrinsic_composer else None
                 
     @property
     def epsilon(self):
@@ -296,6 +302,8 @@ class OptionCritic:
                 - "truncated": Whether an error happened, terminating the game preemptively,
         """
         # Get initial state
+        if self.intrinsic_composer:
+            self.intrinsic_composer.reset()
         state, info = env.reset()
         level = info["level"]
 
@@ -331,10 +339,9 @@ class OptionCritic:
             new_state, reward, terminated, truncated, _ = env.step(action)
             new_state_idx = self._state_to_idx(new_state, level=level)
             
-            if self.intrinsic_rewarder:
-                reward += self.intrinsic_rewarder.weight * self.intrinsic_rewarder.compute(new_state_idx)
-                self.intrinsic_rewarder.update_weight()
-                
+            if self.intrinsic_composer:
+                reward += self.intrinsic_composer.weight(step) * self.intrinsic_composer.compute(new_state_idx, action)
+
             total_reward += reward
 
             # Options evaluation
