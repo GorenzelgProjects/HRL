@@ -24,12 +24,14 @@ class OptionCritic:
         n_options: int,
         encoder: Encoder,
         gamma: float = 0.99,
-        epsilon: float = 0.1,
+        epsilon_start: float = 1,
+        epsilon_min: float = 0.01,
+        epsilon_decay: int = 1e6,
         beta_reg: float = 0.01,
         entropy_reg: float = 0.01,
         n_steps: int = 1000,
         downsample: list[int, int] = [84, 84],
-        device: torch.device = torch.device("cpu")
+        device: torch.device = torch.device("cpu"),
     ):
         """The class for the OptionCritic architecture
 
@@ -52,25 +54,40 @@ class OptionCritic:
             )
         self.n_states = n_states
         self.n_actions = n_actions
-        
+
         self.encoder = encoder
 
         if n_options <= 0:
             raise ValueError("A positive number of options must be set")
         self.n_options = n_options
-        
-        self.encoder_prime = copy.deepcopy(self.encoder) # For more stable Q-values
+
+        self.encoder_prime = copy.deepcopy(self.encoder)  # For more stable Q-values
         self.encoder_prime.to(device)
-        
-        self.gamma = gamma # Discount factor
-        self.epsilon = epsilon  # Exploration/Exploitation param
-        self.beta_reg = beta_reg # Termination regularization parameter
-        self.entropy_reg = entropy_reg # Entropy regularization parameter
+
+        self.gamma = gamma  # Discount factor
+
+        # epsilon
+        self.epsilon_start = epsilon_start  # Exploration/Exploitation param
+        self.epsilon_min = epsilon_min
+        self.epsilon_decay = epsilon_decay
+        self.num_steps = 0
+
+        self.beta_reg = beta_reg  # Termination regularization parameter
+        self.entropy_reg = entropy_reg  # Entropy regularization parameter
 
         self.n_steps = n_steps
         self.downsample_size = downsample
-        
+
         self.device = device
+
+    @property
+    def epsilon(self):
+        # WARNING: ONLY CALL self.epsilon ONCE DURING A STEP!!!!
+        eps = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * np.exp(
+            -self.num_steps / self.epsilon_decay
+        )
+        self.num_steps += 1
+        return eps
 
     def choose_new_option(self, state: np.ndarray | torch.Tensor) -> int:
         """Chooses a new option according to an epsilon-greedy strategy

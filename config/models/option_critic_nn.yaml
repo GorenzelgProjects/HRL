@@ -1,9 +1,9 @@
 option_critic_nn: 
-  n_states: 104 # TODO: Should be precomputed
+  n_states: 1200 # TODO: Should be precomputed
   n_options: 2
   n_actions: 4
 
-  n_steps: 1000
+  n_steps: 4000
   n_episodes: 1000
 
   n_filters: [32, 64, 64]
@@ -13,9 +13,9 @@ option_critic_nn:
 
   optimizer_name: "RMSProp"
 
-  epsilon: 0.9
-  epsilon_decay: 0.998  # Epsilon decay per episode
-  epsilon_min: 0.05 
+  epsilon: 1 # epsilon start value
+  epsilon_decay: 2e6
+  epsilon_min: 0.01 
   gamma: 0.99
   beta_reg: 0.01
   entropy_reg: 0.01

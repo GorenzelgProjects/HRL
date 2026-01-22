@@ -25,6 +25,7 @@ from environment.thin_ice.thin_ice_env import ThinIceEnv
 from model.hrl.option_critic_nn.oc_network import Encoder
 from model.hrl.option_critic_nn.option_critic_nn import OptionCritic
 
+
 def save_agent(agent: OptionCritic, save_dir: Path, episode: int, level: int):
     """Save the trained agent to disk
 
@@ -48,7 +49,7 @@ def save_agent(agent: OptionCritic, save_dir: Path, episode: int, level: int):
         "n_steps": agent.n_steps,
         "beta_reg": agent.beta_reg,
         "entropy_reg": agent.entropy_reg,
-        "img_size": tuple(agent.downsample_size)
+        "img_size": tuple(agent.downsample_size),
     }
 
     # Save to JSON
@@ -147,7 +148,7 @@ def train_option_critic_nn(
     render: bool = False,
     delay: bool = 0.05,
     max_history: int = 10000,
-    cuda: bool = False
+    cuda: bool = False,
 ) -> Tuple[OptionCritic, List[Dict]]:
     """Train OptionCritic agent for specified number of episodes
 
@@ -181,7 +182,7 @@ def train_option_critic_nn(
     else:
         device = torch.device("cpu")
     logging.info(f"Running on {device}")
-    
+
     # Setup directories
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -190,35 +191,38 @@ def train_option_critic_nn(
     results_dir = output_path / "results"
 
     # Initialize the encoder
-    encoder = Encoder(image_size=img_size,
-                      n_filters=n_filters,
-                      conv_sizes=conv_sizes,
-                      strides=strides,
-                      n_neurons=n_neurons,
-                      n_options=n_options,
-                      n_actions=n_actions,
-                      temperature=temperature,
-                      device=device)
+    encoder = Encoder(
+        image_size=img_size,
+        n_filters=n_filters,
+        conv_sizes=conv_sizes,
+        strides=strides,
+        n_neurons=n_neurons,
+        n_options=n_options,
+        n_actions=n_actions,
+        temperature=temperature,
+        device=device,
+    )
     encoder.to(device)
-    
+
     if optimizer_name == "RMSProp":
-        optimizer = torch.optim.RMSprop(encoder.parameters(),
-                                        lr=lr)
+        optimizer = torch.optim.RMSprop(encoder.parameters(), lr=lr)
     else:
         raise ValueError("Cannot identify optimizer")
-    
+
     agent = OptionCritic(
         n_states=n_states,
         n_actions=n_actions,
         n_options=n_options,
         encoder=encoder,
         gamma=gamma,
-        epsilon=epsilon,
+        epsilon_start=epsilon,
+        epsilon_min=epsilon_min,
+        epsilon_decay=epsilon_decay,
         beta_reg=beta_reg,
         entropy_reg=entropy_reg,
         n_steps=n_steps,
         downsample=img_size,
-        device=device
+        device=device,
     )
 
     # Training loop
@@ -231,17 +235,20 @@ def train_option_critic_nn(
             optimizer=optimizer,
             render=render if episode == num_episodes - 1 else False,
             delay=delay,
-            max_history=max_history
+            max_history=max_history,
         )
-        
+
         episode_stats["episode"] = episode
         all_results.append(episode_stats)
-        
-        # Decay the exploration parameter
-        agent.epsilon = max(agent.epsilon * epsilon_decay, epsilon_min)
-        logging.debug(f"Decayed epsilon to {agent.epsilon}")
 
-        pbar.set_postfix(dict(R=episode_stats['total_reward'], steps=episode_stats['total_steps']))
+        # NOTE: Changed to step decay instead
+        # Decay the exploration parameter
+        # agent.epsilon = max(agent.epsilon * epsilon_decay, epsilon_min)
+        # logging.debug(f"Decayed epsilon to {agent.epsilon}")
+
+        pbar.set_postfix(
+            dict(R=episode_stats["total_reward"], steps=episode_stats["total_steps"])
+        )
         # Log episode statistics
         if verbose:
             logging.info(
