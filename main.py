@@ -121,6 +121,7 @@ def run(cfg: DictConfig) -> None:
                         save_dir=cfg.save_dir,
                         state_mapping_dir=cfg.environment.state_mapping_dir,
                         partial_env=partial_env,
+                        intrinsic_composer_cfg=model_cfg.intrinsic_reward
                     )
                 )
             case "option_critic_nn":
