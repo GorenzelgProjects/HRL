@@ -134,109 +134,109 @@ def createArguments():
     
     # Create option_critic_nn argument files
     ocnn_combinations = [
-        # Combination 1: Default settings
+        # Combination 1: Default decay (balanced)
         {**base_ocnn, **{
-            'n_options': 2,
-            'epsilon': 0.9,
-            'epsilon_decay': 0.998,
-            'epsilon_min': 0.05,
+            'n_options': 4,
+            'epsilon': 1.0,
+            'epsilon_decay': 1_000_000,   # default
+            'epsilon_min': 0.01,
             'gamma': 0.99,
             'lr': 0.00025,
             'beta_reg': 0.01,
             'entropy_reg': 0.01,
             'temperature': 1e-2,
             'n_episodes': 1000,
-            'n_steps': 1000,
+            'n_steps': 4000,
             'optimizer_name': 'RMSProp',
         }},
-        # Combination 2: Higher learning rate
+        # Combination 2: Faster epsilon decay
         {**base_ocnn, **{
-            'n_options': 2,
-            'epsilon': 0.9,
-            'epsilon_decay': 0.998,
-            'epsilon_min': 0.05,
+            'n_options': 4,
+            'epsilon': 1.0,
+            'epsilon_decay': 500_000,     # faster commitment
+            'epsilon_min': 0.01,
             'gamma': 0.99,
             'lr': 0.0005,
             'beta_reg': 0.01,
             'entropy_reg': 0.01,
             'temperature': 1e-2,
             'n_episodes': 1000,
-            'n_steps': 1000,
+            'n_steps': 4000,
             'optimizer_name': 'RMSProp',
         }},
-        # Combination 3: Lower learning rate
+        # Combination 3: Slower epsilon decay
         {**base_ocnn, **{
-            'n_options': 2,
-            'epsilon': 0.9,
-            'epsilon_decay': 0.998,
-            'epsilon_min': 0.05,
+            'n_options': 4,
+            'epsilon': 1.0,
+            'epsilon_decay': 3_000_000,   # longer exploration
+            'epsilon_min': 0.01,
             'gamma': 0.99,
             'lr': 0.0001,
             'beta_reg': 0.01,
             'entropy_reg': 0.01,
             'temperature': 1e-2,
             'n_episodes': 1000,
-            'n_steps': 1000,
+            'n_steps': 4000,
             'optimizer_name': 'RMSProp',
         }},
-        # Combination 4: More regularization
+        # Combination 4: More regularization + slow decay
         {**base_ocnn, **{
-            'n_options': 2,
-            'epsilon': 0.9,
-            'epsilon_decay': 0.998,
-            'epsilon_min': 0.05,
+            'n_options': 4,
+            'epsilon': 1.0,
+            'epsilon_decay': 3_000_000,
+            'epsilon_min': 0.01,
             'gamma': 0.99,
             'lr': 0.00025,
             'beta_reg': 0.05,
             'entropy_reg': 0.05,
             'temperature': 1e-2,
             'n_episodes': 1000,
-            'n_steps': 1000,
+            'n_steps': 4000,
             'optimizer_name': 'RMSProp',
         }},
-        # Combination 5: Different optimizer
+        # Combination 5: More options
         {**base_ocnn, **{
-            'n_options': 2,
-            'epsilon': 0.9,
-            'epsilon_decay': 0.998,
-            'epsilon_min': 0.05,
+            'n_options': 8,
+            'epsilon': 1.0,
+            'epsilon_decay': 2_000_000,
+            'epsilon_min': 0.01,
             'gamma': 0.99,
             'lr': 0.00025,
             'beta_reg': 0.01,
             'entropy_reg': 0.01,
             'temperature': 1e-2,
             'n_episodes': 1000,
-            'n_steps': 1000,
-            'optimizer_name': 'Adam',
+            'n_steps': 4000,
+            'optimizer_name': 'RMSProp',
         }},
-        # Combination 6: More episodes
+        # Combination 6: More episodes + very slow decay
         {**base_ocnn, **{
-            'n_options': 2,
-            'epsilon': 0.9,
-            'epsilon_decay': 0.998,
-            'epsilon_min': 0.05,
+            'n_options': 4,
+            'epsilon': 1.0,
+            'epsilon_decay': 3_500_000,   # max as requested
+            'epsilon_min': 0.01,
             'gamma': 0.99,
             'lr': 0.00025,
             'beta_reg': 0.01,
             'entropy_reg': 0.01,
             'temperature': 1e-2,
             'n_episodes': 2000,
-            'n_steps': 1000,
+            'n_steps': 4000,
             'optimizer_name': 'RMSProp',
         }},
-        # Combination 7: More options
+        # Combination 7: More options + slow decay
         {**base_ocnn, **{
-            'n_options': 4,
-            'epsilon': 0.9,
-            'epsilon_decay': 0.998,
-            'epsilon_min': 0.05,
+            'n_options': 8,
+            'epsilon': 1.0,
+            'epsilon_decay': 3_000_000,
+            'epsilon_min': 0.01,
             'gamma': 0.99,
             'lr': 0.00025,
             'beta_reg': 0.01,
             'entropy_reg': 0.01,
             'temperature': 1e-2,
             'n_episodes': 1000,
-            'n_steps': 1000,
+            'n_steps': 4000,
             'optimizer_name': 'RMSProp',
         }},
     ]
