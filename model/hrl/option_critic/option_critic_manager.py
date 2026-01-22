@@ -1,12 +1,17 @@
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, TYPE_CHECKING, Union
 
+import hydra
 import gymnasium as gym
 from loguru import logger as logging
 
 from model.base_manager import BaseModelManager
 from model.hrl.option_critic.train_agent import train_agent
 from model.hrl.option_critic.plot_termination_probs import plot_termination_probabilities
+
+if TYPE_CHECKING:
+    from omegaconf import DictConfig
+
 
 class OptionCriticManager(BaseModelManager):
     def __init__(
@@ -30,9 +35,7 @@ class OptionCriticManager(BaseModelManager):
         save_dir: str,
         state_mapping_dir: str,
         partial_env: Callable[[int], gym.Env],
-        intrinsic_name: Optional[str] = None,
-        intrinsic_weight_start: Optional[float] = 5,
-        intrinsic_decay: Optional[float] = 200_000, # NOTE: Should scale with how many steps+eps there are
+        intrinsic_composer_cfg: Optional[Union["DictConfig",dict]] = None,
     ) -> None:
 
         self.n_states = n_states
@@ -55,9 +58,7 @@ class OptionCriticManager(BaseModelManager):
         self.state_mapping_dir = state_mapping_dir
         self.verbose = verbose and not quiet
         
-        self.intrinsic_name = intrinsic_name
-        self.intrinsic_weight_start = intrinsic_weight_start
-        self.intrinsic_decay = intrinsic_decay
+        self.intrinsic_composer = hydra.utils.instantiate(intrinsic_composer_cfg)
 
         super().__init__(partial_env, model_name="option_critic", save_dir=save_dir)
 
@@ -93,9 +94,7 @@ class OptionCriticManager(BaseModelManager):
                 verbose=self.verbose,
                 render=render,
                 delay=delay,
-                intrinsic_name=self.intrinsic_name,
-                intrinsic_weight_start=self.intrinsic_weight_start,
-                intrinsic_decay=self.intrinsic_decay,
+                intrinsic_composer = self.intrinsic_composer
             )
 
         return

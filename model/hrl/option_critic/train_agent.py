@@ -9,7 +9,7 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -26,6 +26,9 @@ if str(project_root) not in sys.path:
 from environment.thin_ice.thin_ice_env import ThinIceEnv
 from model.hrl.option_critic.option_critic import OptionCritic
 from model.hrl.option_critic.state_manager import StateManager
+
+if TYPE_CHECKING:
+    from model.hrl.option_critic.intrinsic_rewards.intrinsic_composer import IntrinsicComposer
 
 
 def save_agent(agent: OptionCritic, save_dir: Path, episode: int, level: int):
@@ -179,9 +182,7 @@ def train_agent(
     verbose: bool = True,
     render: bool = False,
     delay: bool = 0.05,
-    intrinsic_name: Optional[str] = None,
-    intrinsic_weight_start: float = 5.,
-    intrinsic_decay = 200_000,
+    intrinsic_composer: Optional["IntrinsicComposer"] = None,
     
 ) -> Tuple[OptionCritic, List[Dict]]:
     """Train OptionCritic agent for specified number of episodes
@@ -223,17 +224,6 @@ def train_agent(
     # Create state manager
     state_manager = StateManager(Path(state_mapping_dir))
 
-    # Instantiate intrinsic rewarder
-    if intrinsic_name:
-        match intrinsic_name:
-            case "novelty":
-                intrinsic_rewarder = NoveltyIntrinsic(intrinsic_weight_start, intrinsic_decay)
-            case _:
-                raise NotImplementedError(f"Could not find intrinsic {intrinsic_name}")
-    else:
-        intrinsic_rewarder = None
-
-
     agent = OptionCritic(
         n_states=n_states,
         n_actions=n_actions,
@@ -245,7 +235,7 @@ def train_agent(
         epsilon=epsilon,
         n_steps=n_steps,
         state_manager=state_manager,
-        intrinsic_rewarder=intrinsic_rewarder,
+        intrinsic_composer=intrinsic_composer,
     )
 
     # Training loop
@@ -259,7 +249,7 @@ def train_agent(
             env,
             temperature,
             save_mapping=True,
-            render=render if episode == num_episodes - 1 else False,
+            render=render if episode == 1 else False,
             delay=delay
         )
         
