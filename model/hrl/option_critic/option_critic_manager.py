@@ -75,7 +75,7 @@ class OptionCriticManager(BaseModelManager):
                 alpha_critic=self.alpha_critic,
                 alpha_theta=self.alpha_theta,
                 alpha_upsilon=self.alpha_upsilon,
-                epsilon=self.epsilon,
+                epsilon_start=self.epsilon,
                 epsilon_decay = self.epsilon_decay,
                 epsilon_min = self.epsilon_min,
                 n_steps=self.n_steps,

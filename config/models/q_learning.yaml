@@ -1,10 +1,9 @@
 q_learning:
-  learning_rate: 0.1
+  learning_rate: 0.3
   discount: 0.99
   epsilon: 1  # Exploration rate
-  epsilon_decay: 0.995  # Epsilon decay per episode
-  epsilon_min: 0.01  # Minimum epsilon
+  epsilon_decay: 2e6  # Epsilon decay per episode
+  epsilon_min: 0.05  # Minimum epsilon
 
-
-  qlearning_episodes: 40  # Number of Q-learning episodes
+  qlearning_episodes: 1000  # Number of Q-learning episodes
   render: false  # Set to true to visualize training, false for faster training

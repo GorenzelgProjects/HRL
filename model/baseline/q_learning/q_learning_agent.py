@@ -2,6 +2,8 @@ import numpy as np
 import time
 
 
+
+
 def train_q_learning(
     env,
     num_episodes=100,
@@ -13,6 +15,9 @@ def train_q_learning(
     render=False,
     delay=0.05,
 ):
+    # Not getting paid enough to begin renaming all the epsilons
+    epsilon_start = epsilon
+    
     """Test with a simple Q-learning agent"""
     print("=" * 60)
     print("Testing with Q-Learning Agent")
@@ -54,6 +59,7 @@ def train_q_learning(
     episode_rewards = []
     episode_lengths = []
     results = []
+    total_steps = 0
 
     for episode in range(num_episodes):
         obs, info = env.reset()
@@ -72,6 +78,9 @@ def train_q_learning(
             time.sleep(delay)
 
         while not terminated and not truncated:
+            epsilon = epsilon_min + (epsilon_start - epsilon_min) * np.exp(
+                -total_steps / epsilon_decay
+            )
             # Epsilon-greedy action selection
             if np.random.random() < epsilon:
                 action = env.action_space.sample()
@@ -94,18 +103,16 @@ def train_q_learning(
             state_key = next_state_key
             total_reward += reward
             steps += 1
-
+            total_steps += 1
+            
             if render and episode == num_episodes - 1:  # Render only last episode
                 env.render()
                 time.sleep(delay)
 
-            if steps >= 500:  # Safety limit
+            if steps >= 4000:  # Safety limit
                 truncated = True
                 break
-
-        # Decay
-        epsilon = max(epsilon_min, epsilon * epsilon_decay)
-
+        
         episode_time = time.time() - episode_start_time
         episode_rewards.append(total_reward)
         episode_lengths.append(steps)

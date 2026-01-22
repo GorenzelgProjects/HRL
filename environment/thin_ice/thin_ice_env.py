@@ -923,8 +923,8 @@ class ThinIceEnv(gym.Env):
             return np.array([state[1], state[0]]), info_str
         else:
             assert 4 in state # Check that the player is in the state
-            has_key_str = "Has Key" if 6 in state else "No Key"
-            keyhole_unlocked_str = "Keyhole Unlocked" if 7 in state else "Keyhole Locked"
+            has_key_str = "No Key" if 6 in state else "Has Key"
+            keyhole_unlocked_str = "Keyhole Locked" if 7 in state else "Keyhole Unlocked"
             info_str = has_key_str + "," + keyhole_unlocked_str
             grid_shape = (self.grid_height, self.grid_width)
             player_loc = np.unravel_index(np.argwhere(state == 4)[0,0], grid_shape)

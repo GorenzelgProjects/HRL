@@ -166,9 +166,9 @@ def train_agent(
     alpha_critic: float = 0.5,
     alpha_theta: float = 0.25,
     alpha_upsilon: float = 0.25,
-    epsilon: float = 0.9,
-    epsilon_decay: float = 0.995,
-    epsilon_min: float = 0.01,
+    epsilon_start: float = 1.0,
+    epsilon_min: float = 0.05,
+    epsilon_decay: int = 1e6,
     n_steps: int = 1000,
     temperature: float = 1.0,
     save_frequency: int = 10,
@@ -220,7 +220,9 @@ def train_agent(
         alpha_critic=alpha_critic,
         alpha_theta=alpha_theta,
         alpha_upsilon=alpha_upsilon,
-        epsilon=epsilon,
+        epsilon_start=epsilon_start,
+        epsilon_min=epsilon_min,
+        epsilon_decay=epsilon_decay,
         n_steps=n_steps,
         state_manager=state_manager,
     )
@@ -236,7 +238,7 @@ def train_agent(
             env,
             temperature,
             save_mapping=True,
-            render=render if episode == num_episodes - 1 else False,
+            render=render if episode == 1 else False,
             delay=delay
         )
         
@@ -244,7 +246,6 @@ def train_agent(
         all_results.append(episode_stats)
         
         # Decay the exploration parameter
-        agent.epsilon = max(agent.epsilon * epsilon_decay, epsilon_min)
         logging.debug(f"Decayed epsilon to {agent.epsilon}")
 
         pbar.set_postfix(dict(R=episode_stats['total_reward'], steps=episode_stats['total_steps']))

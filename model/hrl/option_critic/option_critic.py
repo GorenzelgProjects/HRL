@@ -119,7 +119,9 @@ class OptionCritic:
         alpha_critic: float = 0.5,
         alpha_theta: float = 0.25,
         alpha_upsilon: float = 0.25,
-        epsilon: float = 0.1,
+        epsilon_start: float = 1.0,
+        epsilon_min: float = 0.05,
+        epsilon_decay: int = 1e6,
         n_steps: int = 1000,
         state_manager: Optional[StateManager] = None,
     ):
@@ -159,12 +161,26 @@ class OptionCritic:
         self.alpha_critic = alpha_critic  # Critic lr
         self.alpha_theta = alpha_theta  # Intra-policy lr
         self.alpha_upsilon = alpha_upsilon  # Termination function lr
-
-        self.epsilon = epsilon  # Exploration/Exploitation param
+        
+        # Epsilon stuff
+        self.epsilon_start = epsilon_start  # Exploration/Exploitation param
+        self.epsilon_min = epsilon_min
+        self.epsilon_decay = epsilon_decay
+        self.num_steps = 0
 
         self.n_steps = n_steps
+        
 
         self.state_manager = state_manager
+        
+    @property
+    def epsilon(self):
+        # WARNING: ONLY CALL self.epsilon ONCE DURING A STEP!!!!
+        eps = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * np.exp(
+            -self.num_steps / self.epsilon_decay
+        )
+        self.num_steps += 1
+        return eps
 
     def get_Q_Omega(
         self, state_idx: int, option_idx: Optional[int] = None
@@ -466,7 +482,9 @@ class OptionCritic:
 
         with torch.no_grad():
             option.upsilon -= self.alpha_upsilon * option.upsilon.grad * advantage
-
+        if option.upsilon[213] != 0.0:
+            print(2)
+        
         return
 
     def _state_to_idx(self, state: np.ndarray, level: int) -> int:

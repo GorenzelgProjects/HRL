@@ -29,7 +29,7 @@ def plot_termination_probabilities(level_env: BaseDiscreteEnv, saved_agent_file,
     for option_data in options_data:
         termination_probs = -1 * wall_mask
         termination_probs = termination_probs.astype(float)
-        termination_probs_dict = defaultdict(lambda: termination_probs)
+        termination_probs_dict = defaultdict(lambda: termination_probs.copy())
         
         theta = torch.tensor(option_data["theta"])
         upsilon = torch.tensor(option_data["upsilon"])
@@ -50,11 +50,11 @@ def plot_termination_probabilities(level_env: BaseDiscreteEnv, saved_agent_file,
                 fig_dir = os.path.join(output_path, info_str.replace(" ", "-"))
             else:
                 fig_dir = output_path
-            plt.imshow(termination_prob_arr, cmap="viridis", origin="lower")
+            plt.imshow(termination_prob_arr, cmap="viridis", origin="upper")
             plt.colorbar(label="Probability")
 
             plt.title(f"Termination Probs Option: {option_data['idx']}, Info: {info_str}")
             os.makedirs(fig_dir, exist_ok=True)
-            plt.savefig(os.path.join(output_path, f"term-prob_ep-{episode}_op-{option_data['idx']}.png"))
-            plt.show()
+            plt.savefig(os.path.join(fig_dir, f"term-prob_ep-{episode}_op-{option_data['idx']}.png"))
+            # plt.show()
             plt.close()
