@@ -1,4 +1,5 @@
 import time
+import tqdm
 
 def train_random_agent(env, num_episodes=5, render=False, delay=0.1):
     """Test the environment with a random agent"""
@@ -8,7 +9,7 @@ def train_random_agent(env, num_episodes=5, render=False, delay=0.1):
     
     results = []
     
-    for episode in range(num_episodes):
+    for episode in tqdm.tqdm(range(num_episodes), total=num_episodes):
         _, info = env.reset(seed=42 + episode)
         total_reward = 0
         steps = 0
@@ -16,8 +17,8 @@ def train_random_agent(env, num_episodes=5, render=False, delay=0.1):
         truncated = False
         episode_start_time = time.time()
         
-        print(f"\nEpisode {episode + 1}")
-        print(f"Initial distance to exit: {info['distance']}")
+        # print(f"\nEpisode {episode + 1}")
+        # print(f"Initial distance to exit: {info['distance']}")
         
         if render:
             try:
@@ -39,10 +40,10 @@ def train_random_agent(env, num_episodes=5, render=False, delay=0.1):
                 env.render()
                 time.sleep(delay)
             
-            if steps % 50 == 0:
-                print(f"  Step {steps}: Reward={total_reward:.2f}, Distance={info['distance']}")
+            # if steps % 100 == 0:
+            #     print(f"  Step {steps}: Reward={total_reward:.2f}, Distance={info['distance']}")
             
-            if steps >= 500:  # Safety limit
+            if steps >= 4000:  # Safety limit
                 truncated = True
                 break
         
@@ -63,9 +64,9 @@ def train_random_agent(env, num_episodes=5, render=False, delay=0.1):
         }
         results.append(episode_result)
         
-        print(f"Episode finished: Steps={steps}, Total Reward={total_reward:.2f}, "
-              f"Terminated={terminated}, Visited Tiles={info['visited_tiles']}/{info['total_tiles']}, "
-              f"Time={episode_time:.2f}s")
+        # print(f"Episode finished: Steps={steps}, Total Reward={total_reward:.2f}, "
+        #       f"Terminated={terminated}, Visited Tiles={info['visited_tiles']}/{info['total_tiles']}, "
+        #       f"Time={episode_time:.2f}s")
     
     print("\n" + "=" * 60)
     return results
