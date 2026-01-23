@@ -43,6 +43,10 @@ def run(cfg: DictConfig) -> None:
             from environment.four_rooms.four_rooms_env import Fourrooms
             env_id = "FourRooms"
             env_entrypoint = Fourrooms
+        case "option_showcase":
+            from environment.option_showcase.option_showcase_env import OptionShowcaseEnv
+            env_id = "OptionShowCase"
+            env_entrypoint = OptionShowcaseEnv
         case _:
             raise ValueError(f"Unknown environment name: {cfg.environment.name}")
 
